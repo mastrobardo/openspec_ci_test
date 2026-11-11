@@ -46,6 +46,7 @@ Human merges.
 | D9 | Single model choice: a dropdown at Plan (`sonnet`/`opus`/`fable`), saved as manifest `model`; Apply, re-apply and Verify read it. | User decision (2026-11-11). PR events have no inputs; one choice per PR. |
 | D10 | Re-apply is triggered by a "Request changes" review (plus dispatch with `pr`). It reads only feedback newer than `applied_at` from users with write access. | User decision. Mirrors Approve → Verify; the commenter filter blocks prompt injection from outsiders. |
 | D11 | During re-apply the agent classifies feedback: requirement → `/opsx:update` (delta specs may change), implementation → new tasks in tasks.md. The report has a Spec impact table; `guard-diff` lists changed artifacts. | User decision. Delta specs are still in flight until archive; changing them through OpenSpec keeps Verify honest. |
+| D12 | After review, the amended change is the source of truth; the task file is the baseline. Re-apply records each requirement change in `proposal.md` → `## Scope changes from review` (Fn, reviewer, link, which task line it overrides). Verify reports documented differences as NOTE and undocumented ones as FAIL. | User decision (2026-11-11), after Verify failed PR #1 because the reviewer-requested SHA contradicts the task's out-of-scope list. Mirrors a reviewer amending the plan while the ticket is stale. |
 
 ## Required GitHub settings (manual, by the repo owner)
 

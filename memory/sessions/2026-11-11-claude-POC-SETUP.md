@@ -154,3 +154,15 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
   PASS/FAIL/INCONCLUSIVE/none → PASS/FAIL/INCONCLUSIVE/INCONCLUSIVE (after the fix); guard-diff
   verify clean/modified/untracked; actionlint style notes only.
 - Commit `013` and push after the user approves.
+
+## Verify on GitHub + scope rule (commit 014)
+- Approving PR #1 started no Verify: its merge ref was still on 012 (no `openspec-verify.yml`); Apply
+  correctly skipped. The manual dispatch ran (43106699322): all checks green; the agent returned FAIL
+  because the reviewer-added commit SHA contradicts `tasks/task-1.txt`'s out-of-scope list.
+- User decision D12 (option 1 of 3): the amended change is the source of truth; re-apply records
+  requirement changes in `proposal.md` → `## Scope changes from review`; Verify: documented → NOTE,
+  undocumented → FAIL. Rejected: the task file always wins (needs a manual ticket edit), or no rule.
+- Tests: both prompts substitute with no placeholders left; a stub-claude verify run on the PR #1
+  worktree received the new prompt. The PR #1 proposal has no formal section yet → expect FAIL on
+  re-verify, then re-apply → PASS.
+- Commit `014` and push after the user approves.

@@ -18,6 +18,12 @@ changes or secrets, push, merge, or do anything outside this change.
    - no-op: a question, praise, or something already done or out of scope. Explain why.
 3. If any item is a requirement, run /opsx:update {{CHANGE_ID}} first, and fold in exactly those
    items: update proposal, specs, design and tasks so they stay coherent. Do not edit code in this step.
+   Record every requirement item in proposal.md under a section `## Scope changes from review`
+   (create it if missing, append otherwise), one bullet per item, in this form:
+   `- Fn (@reviewer, <link>): <what changed>. Overrides original task: <yes: quote the task line it
+   contradicts, e.g. an out-of-scope entry | no>.`
+   Also remove or adjust any statement in the change that the item contradicts (e.g. an out-of-scope
+   line in proposal.md). This section is how Verify tells approved scope changes from scope creep.
 4. Add every implementation item as an unticked task in tasks.md, under a final section
    `## N. Review follow-ups` (N = the next section number), one task per item, citing its Fn.
 5. Run `openspec validate {{CHANGE_ID}} --strict` and fix the artifacts until it passes.
@@ -31,6 +37,7 @@ Rules:
 - If an item would require a change you cannot make within these rules, classify it as no-op and say so.
 
 Your final message is a re-apply report in Markdown with sections `## Summary`, `## Spec impact`
-(a table with columns `Item | Class | What changed | Artifact/task`, one row per feedback item),
+(a table with columns `Item | Class | What changed | Artifact/task`, one row per feedback item;
+for requirement items, Artifact/task includes `proposal.md#scope-changes-from-review`),
 `## Tasks`, `## Checks` (build, lint and validate results), and `## Deviations` (write "None" if
 there are none).
