@@ -1,5 +1,7 @@
 footer {
-  padding: 16px;
+  --footer-padding: 16px;
+
+  padding: var(--footer-padding);
   text-align: center;
   font-size: 14px;
   color: var(--text);

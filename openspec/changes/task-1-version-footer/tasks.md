@@ -14,3 +14,7 @@
 
 - [x] 3.1 Temporarily set `package.json` version to `1.2.3`, run `pnpm build`, confirm "Version 1.2.3" appears in the built output (e.g. grep `dist/assets`), then revert to `0.0.0` (spec: version bump and rebuild).
 - [x] 3.2 Run `pnpm build` and `pnpm lint`; verify both exit 0 (spec: build and lint succeed).
+
+## 4. Review follow-ups
+
+- [x] 4.1 (F1) In `src/App.css`, replace the hard-coded footer `padding: 16px` with a CSS variable (`--footer-padding`); verify the footer padding is unchanged.
