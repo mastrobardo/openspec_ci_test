@@ -46,11 +46,13 @@ plus a per-run artifact (`<stage>.json` with turns, cost, model, denials).
 | 21:59 | 43107919479 | Verify (Approve, auto) | ❌ FAIL: section missing → 015 deterministic check | 16 turns, $0.14 |
 | 22:05 | 43108778620 | Re-apply (ran the 014 workflow: merge ref 23 s older than 015) | ✅ section written | 15 turns, $0.12 |
 | 22:06 | 43108985466 | Verify (Approve, auto) | ✅ **PASS** | 15 turns, $0.13 |
+| 22:41 | 43113921088 | `/reapply` comment (016) | skipped: the comment began with a space (`startsWith` has no trim) | – |
+| 22:44 | 43114321202 | `/reapply` comment (016) | ✅ 👀 ack, 2 items (incl. the skipped comment), requirement → `/opsx:update`, **015 scope check passed** | 24 turns, $0.14 |
 
-PR #1 final: open, approved, 6 commits, 10 files, +181/−0. Not yet archived or merged.
-Totals (11 agent runs incl. fallback): 198 turns, $1.55 notional (`total_cost_usd`, charged to the
+PR #1 after the 22:44 re-apply: open, needs re-approval (new commit), not archived or merged.
+Totals (12 agent runs incl. fallback): 222 turns, $1.69 notional (`total_cost_usd`, charged to the
 subscription quota, not billed). Per stage on CI with Sonnet: Plan 18–21 turns (~$0.13–0.20),
-Apply 28 (~$0.19), Re-apply 12–32 (~$0.09–0.19), Verify 11–16 (~$0.11–0.14). Local plan runs before
+Apply 28 (~$0.19), Re-apply 12–32 (~$0.09–0.19; `/reapply` 24, $0.14), Verify 11–16 (~$0.11–0.14). Local plan runs before
 CI: 21–41 turns on Fable ($0.46–1.92). Every CI run used `claude-sonnet-5-5` (dropdown default
 `sonnet`) with 0 permission denials.
 
@@ -75,6 +77,7 @@ merges (PR title + body).
 | Verify FAIL on a reviewer-approved scope change | SHA "out of scope" per the ticket | no source-of-truth rule | D12 (014) |
 | Scope note in the wrong place | Verify FAIL a stage later | a structural rule was left to agent judgment | deterministic `scope-documented` + literal format (015) |
 | Comment posted seconds after the review | not considered | feedback cutoff = run start | it rolls to the next run; `/reapply` command (016) |
+| `/reapply` with a leading space | run skipped | expression `startsWith` without trim | type it at the start (feedback is not lost: it rolls to the next run); optional gate job with a bash regex |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -107,6 +110,5 @@ merges (PR title + body).
   PR title, message = PR body.
 
 ## 9. Not yet proven (be honest on slides)
-- The 015 `scope-documented` step on GitHub (the run that fixed PR #1 used the 014 workflow).
-- `/reapply` (016) and gated archive (017) on GitHub.
+- Gated archive (017) on GitHub. (`/reapply` and the 015 scope check are proven: run 43114321202.)
 - Concurrency of several PRs in parallel, other tasks (task-2..4), the Opus/Fable models in CI.

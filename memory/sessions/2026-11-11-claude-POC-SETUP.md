@@ -194,3 +194,7 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
 - Skills used as guidance: `ci-cd-and-automation`, `security-and-hardening` (commenter filter, trusted
   scripts), `documentation-and-adrs` (D13/D14, poc-results).
 - Commit `016` and push after the user approves.
+- 016 on GitHub: the first `/reapply` comment had a leading space → skipped (43113921088). The user
+  chose not to fix it. The second comment → 43114321202 ✅: 👀 ack, 2 items (the skipped comment
+  rolled over), `/opsx:update`, and the 015 `scope-documented` step passed (first real run). 24 turns,
+  $0.14. Recorded in poc-results. Commit `017` (docs only); archive moves to 018.

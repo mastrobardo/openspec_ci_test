@@ -90,6 +90,9 @@ Learned testing Apply on PR #1 (2026-11-11):
   resolve the branch with `gh pr view`.
 - Even right after a push, a review event can run the previous workflow (merge ref 23 s old in run
   43108778620). Check which steps a run actually had before claiming that a fix was exercised.
+- GitHub expressions have no `trim()`: `startsWith(comment.body, '/reapply')` skips a comment with
+  a leading space or newline (run 43113921088). Accepted as is (user decision); the fix would be a
+  gate job with a bash regex `^[[:space:]]*/reapply([[:space:]]|$)`.
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.
