@@ -28,7 +28,7 @@ permissions:
   pull-requests: write   # post the report as a PR comment
 
 concurrency:
-  group: openspec-apply-${{ github.event.pull_request.number || inputs.pr }}
+  group: openspec-pr-${{ github.event.pull_request.number || inputs.pr }}   # shared with Verify
   cancel-in-progress: false
 
 defaults:

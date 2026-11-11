@@ -139,3 +139,18 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
   end to end (feedback, prompt from the trusted folder, no leftover placeholders, `--model sonnet`,
   report extracted, guard OK, clean `git status`). actionlint: style notes only.
 - Commits 011 + 012 pushed to `origin` after the user approves.
+
+## GitHub results + step 8 (commit 013)
+- On GitHub, PR #1: Apply (dispatch, run 43101481397) OK. Re-apply 1 (review trigger) handled the
+  inline nit → task 4.1. The SHA comment was posted 14 s after the feedback cutoff, so it was picked
+  up by re-apply 2 (run 43102810824): requirement → `/opsx:update`, a Spec impact warning, code
+  updated. Usability gap → `/reapply` command planned (014).
+- User decisions: no `synchronize` trigger for Verify; `/reapply` as a separate commit after Verify.
+- Skills used as guidance: `ci-cd-and-automation`, `security-and-hardening` (contents: read, stale
+  approval check, trusted scripts), `incremental-implementation`.
+- 013: `openspec-verify.yml`, `guard-diff verify`, Apply concurrency renamed to `openspec-pr-N`
+  (shared with Verify). Fixed run-agent: a missing verdict returned 1 instead of 4 (pipefail + grep).
+- Tests: the verify agent step extracted from the YAML and run with a stub claude for
+  PASS/FAIL/INCONCLUSIVE/none → PASS/FAIL/INCONCLUSIVE/INCONCLUSIVE (after the fix); guard-diff
+  verify clean/modified/untracked; actionlint style notes only.
+- Commit `013` and push after the user approves.

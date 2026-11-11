@@ -1,0 +1,201 @@
+# Stage 3 of the OpenSpec lifecycle: verify the implementation on an approved PR.
+#   Review with "Approve"   -> verify the approved head
+#   Manual (pr=N)           -> verify the current head (no approval check)
+# Read-only: never commits to the PR branch (a push after approval would change the approved head).
+# The verdict goes to a PR comment, the job summary and the artifact; non-PASS fails the job.
+# Model, task and change come from .openspec-ci/manifest.json (chosen once, at Plan).
+# Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch.
+name: OpenSpec Verify
+
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number (branch openspec/task-N)"
+        required: true
+        type: string
+
+permissions:
+  contents: read         # verify never pushes
+  pull-requests: write   # post the verdict as a PR comment
+
+concurrency:
+  group: openspec-pr-${{ github.event.pull_request.number || inputs.pr }}   # shared with Apply
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash          # -eo pipefail
+
+jobs:
+  verify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.review.state == 'approved' &&
+       startsWith(github.event.pull_request.head.ref, 'openspec/task-') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PR: ${{ github.event.pull_request.number || inputs.pr }}   # used via env only
+    steps:
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_SHA: ${{ github.event.review.commit_id }}
+        run: |
+          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number"; exit 1; }
+          info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
+            --json headRefName,headRefOid,isCrossRepository,isDraft,state)"
+          head="$(jq -r .headRefName <<<"$info")"
+          sha="$(jq -r .headRefOid <<<"$info")"
+          [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N"; exit 1; }
+          [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported"; exit 1; }
+          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open"; exit 1; }
+          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft"; exit 1; }
+          if [[ "$GITHUB_EVENT_NAME" == pull_request_review && "$REVIEW_SHA" != "$sha" ]]; then
+            echo "::error::approval is stale: it was for ${REVIEW_SHA:0:7} but the PR head is ${sha:0:7}. Re-approve."
+            exit 1
+          fi
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout workflow commit (trusted scripts)
+        uses: actions/checkout@v7
+
+      - name: Stash trusted scripts outside the workspace
+        run: |
+          cp -R scripts "$RUNNER_TEMP/ci-scripts"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
+
+      - name: Checkout PR head (the work)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.pr.outputs.sha }}   # exactly the commit being verified
+
+      - name: Read manifest
+        id: m
+        run: |
+          m=.openspec-ci/manifest.json
+          [[ -f "$m" ]] || { echo "::error::$m missing"; exit 1; }
+          task="$(jq -r '.task // empty' "$m")"
+          stage="$(jq -r '.stage // empty' "$m")"
+          [[ "$stage" == apply || "$stage" == reapply ]] \
+            || { echo "::error::nothing to verify: manifest stage is '$stage' (run Apply first)"; exit 1; }
+          model="$(jq -r '.model // empty' "$m")"
+          if [[ -z "$model" ]]; then
+            model="$(jq -r '.plan_model // empty' "$m")"
+            [[ -z "$model" || "$model" == *,* ]] && model=sonnet
+          fi
+          echo "task=$task" >> "$GITHUB_OUTPUT"
+          echo "change=$(jq -r '.change // empty' "$m")" >> "$GITHUB_OUTPUT"
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies and tools
+        run: |
+          pnpm install --frozen-lockfile
+          npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
+
+      - name: Deterministic checks (change, validate, tasks)
+        env:
+          TASK: ${{ steps.m.outputs.task }}
+          CHANGE: ${{ steps.m.outputs.change }}
+        run: |
+          found="$("$CI_SCRIPTS"/openspec-ops.sh change-id "$TASK")"
+          [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'"; exit 1; }
+          "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
+          "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
+
+      - name: Run agent (verify)
+        id: agent
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_MODEL: ${{ steps.m.outputs.model }}
+          TASK: ${{ steps.m.outputs.task }}
+          CHANGE: ${{ steps.m.outputs.change }}
+        run: |
+          set +e
+          "$CI_SCRIPTS"/run-agent.sh verify "$TASK" "$CHANGE"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) verdict=PASS ;;
+            3) verdict=FAIL ;;
+            4) verdict=INCONCLUSIVE ;;
+            *) verdict=ERROR ;;
+          esac
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict (run-agent exit $rc)"
+
+      - name: Guard - verify changed nothing
+        env:
+          CHANGE: ${{ steps.m.outputs.change }}
+          SHA: ${{ steps.pr.outputs.sha }}
+        run: '"$CI_SCRIPTS"/openspec-ops.sh guard-diff verify "$CHANGE" "$SHA"'
+
+      - name: Post verdict
+        if: always() && steps.agent.outputs.verdict != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERDICT: ${{ steps.agent.outputs.verdict }}
+          CHANGE: ${{ steps.m.outputs.change }}
+          SHA: ${{ steps.pr.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$VERDICT" in
+            PASS) icon="✅" ;; FAIL) icon="❌" ;; *) icon="⚠️" ;;
+          esac
+          body="$RUNNER_TEMP/comment.md"
+          { echo "## $icon OpenSpec Verify: $VERDICT · \`$CHANGE\` @ ${SHA:0:7}"; echo
+            if [[ -s .openspec-ci/runs/verify.md ]]; then cat .openspec-ci/runs/verify.md
+            else echo "(the agent returned no report)"; fi
+            printf '\n---\nGenerated by [OpenSpec Verify](%s).' "$RUN_URL"
+            if [[ "$VERDICT" == PASS ]]; then printf ' Ready to merge.\n'
+            else printf ' Request changes to re-apply, or fix and re-approve.\n'; fi
+          } > "$body"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+
+      - name: Fail unless PASS
+        env:
+          VERDICT: ${{ steps.agent.outputs.verdict }}
+        run: |
+          [[ "$VERDICT" == PASS ]] || { echo "::error::verify verdict: $VERDICT"; exit 1; }
+
+      - name: Upload agent output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: openspec-verify-pr${{ github.event.pull_request.number || inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .openspec-ci/runs/
+          if-no-files-found: ignore
+
+      - name: Job summary
+        if: always()
+        env:
+          CHANGE: ${{ steps.m.outputs.change }}
+          MODEL: ${{ steps.m.outputs.model }}
+          VERDICT: ${{ steps.agent.outputs.verdict }}
+          SHA: ${{ steps.pr.outputs.sha }}
+        run: |
+          {
+            echo "### OpenSpec Verify: PR #$PR"
+            echo "- change: ${CHANGE:-n/a} @ ${SHA:0:7}"
+            echo "- verdict: **${VERDICT:-not reached}**"
+            if [[ -f .openspec-ci/runs/verify.json ]]; then
+              jq -r --arg req "$MODEL" '"- model: \(.modelUsage // {} | keys | join(", ")) (requested: \($req))",
+                     "- turns: \(.num_turns // "?"), cost_usd: \(.total_cost_usd // "?"), denials: \(.permission_denials // [] | length)"' \
+                .openspec-ci/runs/verify.json || true
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

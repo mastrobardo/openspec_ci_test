@@ -15,32 +15,35 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 6b | Plan workflow: `model` dropdown (sonnet/opus/fable), token whitespace check, model + attempt in manifest | done | 008 |
 | 7a | `openspec-apply.yml` first apply (`ready_for_review` + dispatch `pr`), `guard-diff`, manifest `model` alias | done (static + local tests); **not yet run on GitHub** (see Next action) | 009 |
 | 7b | Re-apply with review feedback (`changes_requested`), `pr-feedback.sh`, `reapply` prompt/stage | done (static + simulated); **not yet run on GitHub** | 010 |
-| 8 | `.github/workflows/openspec-verify.yml` | todo | |
+| 8 | `openspec-verify.yml` (Approve + dispatch; read-only, no commit; verdict comment; stale-approval check), `guard-diff verify`, per-PR concurrency `openspec-pr-N` shared with Apply | done (stub-claude tests); **not yet run on GitHub** | 013 |
+| 8b | `/reapply` PR comment command (`issue_comment`, owner/member/collaborator only) | todo | |
 | 9 | README: setup + run instructions | todo | |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
 | 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); GitHub outage 20:20–21:05Z; apply/verify todo | |
 | 11b | Fallback repo `arcibardo/openspec_ci` (Plan passed there → its PR #1); back on the old repo after the outage | done | 011 |
-| 11c | Apply runs trusted scripts from the workflow commit (`$CI_SCRIPTS`), prompts next to the script | done (stub-claude e2e on PR #1 branch) | 012 |
+| 11c | Apply runs trusted scripts from the workflow commit (`$CI_SCRIPTS`), prompts next to the script | done; Apply + 2 re-applies passed on GitHub (PR #1, spec impact shown for the SHA requirement) | 012 |
 
 ## Next action
 
-GitHub had an Actions outage on 2026-11-11 (~20:20Z to ~21:05Z); all `startup_failure` runs date from
-then. After recovery, Apply ran on the old repo and exposed a real bug (scripts run from the PR
-branch were older than the workflow), fixed in 012. `origin` is the old repo again; `arcibardo` is
-the fallback (see `memory/repo/environment.md`).
+State: Plan → Apply → Request changes → re-apply (with `/opsx:update` spec changes) has passed on
+GitHub for PR #1 (`mastrobardo/openspec_ci_test`). The review trigger fired on its own (the merge
+ref had been rebuilt by then).
 
-1. **Apply on PR #1 (old repo)**: `gh workflow run "OpenSpec Apply" -R mastrobardo/openspec_ci_test -f pr=1`
-   (PR #1's merge ref is stale, so use dispatch). Expect mode `apply` and model `sonnet`, then a push
-   of `openspec(task-1): apply …` and a PR comment. Check with
-   `gh api 'repos/mastrobardo/openspec_ci_test/actions/runs?per_page=3'` (the list endpoint). If it fails:
-   `gh run download <id> -R … -D <fresh dir>` and read `.result` / `.permission_denials` in `apply.json`.
-2. **Re-apply test**: "Request changes" on PR #1 with comments (an inline nit + a requirement such as
-   "also show the git SHA"); then dispatch `pr=1` again (stale merge ref). Expect mode `reapply`, a
-   Spec impact box, follow-up tasks, and specs changed only for requirement items.
-3. **Step 8: Verify** (plan to be shown first): `pull_request_review` approved (+ dispatch `pr`), model
-   from the manifest, trusted `$CI_SCRIPTS` pattern, `tasks-complete` + `validate` +
-   `run-agent.sh verify` (read-only), PR comment, exit 3/4 = failed check, per-PR concurrency group
-   shared with Apply. Open question: also run on `synchronize` so it can be a required check?
+1. **Test Verify (013) (the user does this):** Approve PR #1. Expect "OpenSpec Verify" to post a
+   `✅/❌/⚠️ OpenSpec Verify: <verdict>` comment, with no new commit on the branch. Fallback:
+   `gh workflow run "OpenSpec Verify" -R mastrobardo/openspec_ci_test -f pr=1`. A non-PASS verdict
+   fails the job.
+2. **Step 8b, commit `014`** (agreed with the user; show the plan/diff first): a `/reapply` comment
+   command. Trigger `issue_comment: [created]` in `openspec-apply.yml`; job `if`:
+   `github.event.issue.pull_request && startsWith(github.event.comment.body, '/reapply') &&
+   contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)`.
+   The PR number is `github.event.issue.number`, and the head ref is resolved via `gh pr view` (it is
+   not in the payload). Mode `reapply`. Exclude the `/reapply` comment itself from feedback, or keep
+   it as text.
+3. **Step 9: README**: setup (secret, settings), lifecycle, triggers + dispatch fallbacks, model
+   dropdown, troubleshooting (link to ci-gotchas).
+4. Open: archival after a PASS (out of scope so far); `synchronize` stays off (user decision: agent
+   runs only on human gates; a cheap deterministic required check could come later).
 
 Leftovers on the old repo: branch `probe/007` (safe to delete) and uncancellable `startup_failure`
 runs from the outage.

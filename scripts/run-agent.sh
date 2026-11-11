@@ -88,7 +88,8 @@ if [[ $rc -ne 0 ]] || [[ "$(jq -r '.is_error // false' "$out/$stage.json" 2>/dev
 fi
 
 if [[ "$stage" == verify ]]; then
-  verdict="$(grep -Eo 'VERDICT: (PASS|FAIL|INCONCLUSIVE)' "$out/verify.md" | tail -1 | cut -d' ' -f2)"
+  # `|| true`: no match must mean "missing verdict" (exit 4), not a pipefail abort (exit 1).
+  verdict="$( { grep -Eo 'VERDICT: (PASS|FAIL|INCONCLUSIVE)' "$out/verify.md" || true; } | tail -1 | cut -d' ' -f2)"
   echo "run-agent: verdict=${verdict:-missing}" >&2
   case "$verdict" in
     PASS) exit 0 ;;

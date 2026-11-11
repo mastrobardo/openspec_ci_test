@@ -74,6 +74,11 @@ Learned testing Apply on PR #1 (2026-11-11):
   the PR branch; `run-agent.sh` loads prompts from its own folder. Verify (step 8) must do the same.
 - Test scripts end to end without quota by putting a stub `claude` first on PATH that prints a
   result JSON and saves its argv/prompt.
+- Verify never commits: pushing after an approval would change the approved head (and could dismiss
+  the approval). It checks out the exact head sha and fails if the approval's `review.commit_id` is
+  not the current head (stale approval).
+- `set -o pipefail` + `grep` with no match inside `$(...)` aborts the script (exit 1). Use
+  `{ grep … || true; } | …` where "no match" is a valid result (run-agent's missing verdict → 4).
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.

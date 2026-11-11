@@ -9,12 +9,13 @@
 #   tasks-complete <change-id> fail if tasks.md is missing or has unticked "- [ ]" items
 #   guard-plan-diff [base-ref] fail if the working tree (and base-ref...HEAD, if given) touches
 #                              anything outside openspec/ (.openspec-ci/ is ignored)
-#   guard-diff <apply|reapply> <change-id> <base-sha>
+#   guard-diff <apply|reapply|verify> <change-id> <base-sha>
 #                              check files changed since base-sha (working tree + untracked):
 #                              both modes forbid .github/ scripts/ tasks/ .claude/ openspec/specs/
 #                              openspec/config.yaml and other changes; apply also forbids this
 #                              change's artifacts except tasks.md. reapply prints the changed
-#                              artifacts (spec impact) on stdout.
+#                              artifacts (spec impact) on stdout. verify is read-only: any
+#                              changed file fails.
 #   manifest <key=value>...    create/merge .openspec-ci/manifest.json (sets created_at once,
 #                              updated_at always)
 # Exit codes
@@ -83,7 +84,7 @@ cmd_guard_plan_diff() {
 
 cmd_guard_diff() {
   local mode="${1:-}" change_id="${2:-}" base="${3:-}"
-  [[ "$mode" =~ ^(apply|reapply)$ ]] || die "mode must be apply|reapply"
+  [[ "$mode" =~ ^(apply|reapply|verify)$ ]] || die "mode must be apply|reapply|verify"
   valid_change_id "$change_id"
   git rev-parse --verify --quiet "$base^{commit}" >/dev/null || die "unknown base sha: '$base'"
 
@@ -91,7 +92,9 @@ cmd_guard_diff() {
   paths="$( { git diff --name-only "$base"; git ls-files --others --exclude-standard; } | sort -u)"
   while IFS= read -r path; do
     [[ -z "$path" ]] && continue
-    if [[ "$path" =~ ^(\.github/|scripts/|tasks/|\.claude/|openspec/specs/|openspec/config\.yaml$) ]]; then
+    if [[ "$mode" == verify ]]; then
+      bad+=("$path (verify is read-only)")
+    elif [[ "$path" =~ ^(\.github/|scripts/|tasks/|\.claude/|openspec/specs/|openspec/config\.yaml$) ]]; then
       bad+=("$path (protected)")
     elif [[ "$path" == openspec/changes/* && "$path" != "$own"* ]]; then
       bad+=("$path (another change)")
