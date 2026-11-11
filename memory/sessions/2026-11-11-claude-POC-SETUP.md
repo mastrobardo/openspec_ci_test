@@ -177,3 +177,20 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
 - Checked first: `openspec validate --strict` accepts the extra section. 7 local cases as expected;
   actionlint has no new findings.
 - `/reapply` moves to 016. Commit `015` and push after the user approves.
+
+## Lifecycle passed + 016 + settings + presentation record
+- PR #1 reached Verify PASS (43108985466) after re-apply 43108778620. That run used the 014 workflow
+  (the merge ref was 23 s older than the 015 push), so 015's step is not yet exercised on GitHub.
+- User decisions: archive after Verify as a manual gate (GitHub environment with required reviewers),
+  D13; squash merges, D14; `/reapply` first (016), archive next (017); settings via API.
+- Settings applied via `gh api` on `origin`: environment `openspec-archive` (reviewer mastrobardo,
+  self-review allowed, no branch policy); squash-only merges with PR title/body.
+- 016: `issue_comment` trigger for `/reapply [text]` (owner/member/collaborator), 👀 reaction
+  (best effort), PR number from `issue.number`; pr-feedback strips a leading `/reapply` (a bare one
+  is dropped). Tests: 5 synthetic comments (3 kept, as expected), the mode step for the comment event
+  with and without feedback, actionlint clean.
+- The user will build a presentation: created `memory/repo/poc-results.md` from real run data (all runs on both
+  repos via the API + artifacts: turns, notional cost, model, verdicts). Keep it updated per commit.
+- Skills used as guidance: `ci-cd-and-automation`, `security-and-hardening` (commenter filter, trusted
+  scripts), `documentation-and-adrs` (D13/D14, poc-results).
+- Commit `016` and push after the user approves.

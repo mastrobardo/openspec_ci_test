@@ -8,6 +8,8 @@
 #   review bodies (pulls/N/reviews), inline review comments with path/line (pulls/N/comments),
 #   conversation comments (issues/N/comments)
 #   only from OWNER / MEMBER / COLLABORATOR, never from bots (this drops our own reports)
+#   a leading "/reapply" command is stripped: a bare "/reapply" is only a trigger (dropped),
+#   "/reapply <text>" keeps <text> as feedback
 # Env
 #   GH_TOKEN             token for gh (CI)
 #   GITHUB_REPOSITORY    owner/repo (default: the current gh repo)
@@ -44,7 +46,7 @@ fi
 # Normalise to one list, filter, sort by time.
 items="$(jq --arg since "$since" '
   def item(kind; at; where):
-    {kind: kind, at: at, where: where, body: (.body // ""), url: .html_url,
+    {kind: kind, at: at, where: where, body: ((.body // "") | sub("^\\s*/reapply\\b\\s*"; "")), url: .html_url,
      user: .user.login, bot: ((.user.type // "User") == "Bot"), assoc: .author_association};
   [ (.reviews[]        | item("review (\(.state | ascii_downcase))"; .submitted_at; null)),
     (.comments[]       | item("inline comment"; .created_at;

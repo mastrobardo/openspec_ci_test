@@ -9,6 +9,9 @@ description: Tool versions, repo layout and auth approach for the OpenSpec CI PO
   remote `arcibardo`, gh account `arcibardo` (logged in, not active). Same settings: secret set,
   default workflow permissions `read`, create/approve PRs on. Its own draft PR #1 (task-1) exists.
   Pushing there needs `gh auth switch -u arcibardo`.
+- Settings applied via API on `origin` (2026-11-11): environment `openspec-archive` (reviewer
+  `mastrobardo`, self-review allowed, no branch policy); merges squash-only (title = PR title, body =
+  PR body). Details and the full record: [[poc-results]].
 - Always pass `-R <owner/repo>` to `gh`: with two remotes, gh may pick the wrong one.
 - App: Vite + React 19 + TS, pnpm. Scripts: `build` (tsc -b && vite build), `lint`. No tests.
 - Local tools (2026-11-11): openspec 1.14.1, Claude Code 2.1.322, gh 2.94.0, node 22.22.0.

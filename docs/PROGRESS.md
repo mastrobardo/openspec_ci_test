@@ -17,8 +17,10 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 7b | Re-apply with review feedback (`changes_requested`), `pr-feedback.sh`, `reapply` prompt/stage | done (static + simulated); **not yet run on GitHub** | 010 |
 | 8 | `openspec-verify.yml` (Approve + dispatch; read-only, no commit; verdict comment; stale-approval check), `guard-diff verify`, per-PR concurrency `openspec-pr-N` shared with Apply | done; ran on GitHub (dispatch; the approval event saw a stale merge ref) → FAIL for scope (→ D12) | 013 |
 | 8a | Scope rule D12: re-apply writes `## Scope changes from review`; Verify: documented = NOTE, undocumented = FAIL | done; on GitHub, Verify correctly failed an inline (non-section) note → 015 | 014 |
-| 8c | D12 enforced: `openspec-ops.sh scope-documented` after re-apply (proposal/specs changed → section with `- F<n>` required); literal format in the reapply prompt | done (7 local cases); **not yet run on GitHub** | 015 |
-| 8b | `/reapply` PR comment command (`issue_comment`, owner/member/collaborator only) | todo | 016 |
+| 8c | D12 enforced: `openspec-ops.sh scope-documented` after re-apply (proposal/specs changed → section with `- F<n>` required); literal format in the reapply prompt | done (7 local cases); not yet exercised on GitHub (run 43108778620 used the 014 workflow); PR #1 reached Verify PASS (43108985466) | 015 |
+| 8b | `/reapply [text]` PR comment command (`issue_comment`, owner/member/collaborator only, 👀 ack, bare command dropped from feedback) | done (local tests); **not yet run on GitHub** | 016 |
+| 8d | Settings via API: environment `openspec-archive` (required reviewer), squash-only merges | done | (API, 2026-11-11) |
+| 8e | Gated archive: second Verify job (D13) | todo | 017 |
 | 9 | README: setup + run instructions | todo | |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
 | 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); GitHub outage 20:20–21:05Z; apply/verify todo | |
@@ -27,24 +29,28 @@ unchecked step. **Every step needs explicit user approval before it is committed
 
 ## Next action
 
-State on PR #1 (`mastrobardo/openspec_ci_test`): the Approve event now starts Verify on its own (the merge
-ref is fresh). Verify 43107919479 returned FAIL because re-apply (43107702755) recorded the SHA scope
-change as an inline bullet under "What Changes", not in `## Scope changes from review`. 015 enforces
-the section deterministically.
+State: PR #1 (`mastrobardo/openspec_ci_test`) is approved with Verify PASS (43108985466), not archived,
+not merged. The full record for the presentation is in `memory/repo/poc-results.md`: **update it in
+every commit.**
 
-1. **Test 015 on PR #1 (the user does this):** "Request changes" with e.g. "move the SHA scope note
-   into the Scope changes from review section". Expect: re-apply writes the section, the new step
-   "Check scope changes are documented" passes, then a push. Then Approve → Verify should PASS, with
-   the SHA as a documented NOTE. If re-apply fails at the new step, the agent ignored the format;
-   read `reapply.md` in the artifact.
-2. **Step 8b, commit `016`** (agreed; show the plan/diff first): the `/reapply` comment command. Trigger
-   `issue_comment: [created]` in `openspec-apply.yml`; job `if`: `github.event.issue.pull_request &&
-   startsWith(github.event.comment.body, '/reapply') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
-   github.event.comment.author_association)`. The PR number is `github.event.issue.number`, and the
-   head ref is resolved via `gh pr view`. Mode `reapply`.
-3. **Step 9: README**: setup (secret, settings), lifecycle, triggers + dispatch fallbacks (stale merge
-   ref), model dropdown, the D12 scope rule, troubleshooting (link to ci-gotchas).
-4. Open: archival after a PASS (out of scope so far); `synchronize` stays off (user decision).
+1. **Test 016 (the user does this):** comment on PR #1 `/reapply the version text should be "v0.0.0"`.
+   Expect a 👀 reaction, an Apply run (event `issue_comment`, from main), a requirement →
+   `/opsx:update`, the new "Check scope changes are documented" step passing (this also exercises
+   015), and a push. Then re-approve → Verify.
+2. **Step 8e, commit `017`: gated archive (D13)** (show the plan/diff first):
+   - In `openspec-verify.yml`, move concurrency to job level: `verify` → `openspec-pr-N`,
+     `archive` → `openspec-archive-N`, so a waiting archive never blocks Apply.
+   - Job `archive`: `needs: verify`, `if: needs.verify.outputs.verdict == 'PASS'`,
+     `environment: openspec-archive`, `contents: write` + `pull-requests: write`, no Claude secret.
+     Steps: resolve the PR and refuse if the head ≠ the verified sha; trusted scripts; checkout head;
+     `openspec archive -y <change>`; `openspec validate --all --strict` (or `--specs`); guard
+     (`guard-plan-diff`: only `openspec/` + manifest); manifest `stage=archived`; commit/push; comment
+     "archived, ready to squash merge".
+   - Expose `verdict` and `sha` as `verify` job outputs.
+   - Test: run `openspec archive -y` locally on a worktree of PR #1 (no push) to see the exact file
+     moves and main spec creation; actionlint.
+3. **Step 9: README** (setup, lifecycle incl. archive + squash, triggers + fallbacks, model dropdown,
+   D12, troubleshooting) and presentation material from `poc-results.md`.
 
 Leftovers on the old repo: branch `probe/007` (safe to delete) and uncancellable `startup_failure`
 runs from the outage.
