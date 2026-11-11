@@ -59,13 +59,21 @@ Learned testing Apply on PR #1 (2026-11-11):
 - Those runs were in fact `completed/startup_failure`. The **list** endpoint
   (`actions/runs?per_page=N`) showed that; the single-run endpoint and the UI kept saying
   `queued`. Trust the list endpoint.
-- `startup_failure` on every run (Plan and Apply, old and new account) from ~20:20Z on 2026-11-11.
-  It was proven to be on GitHub's side by re-running the **byte-identical** Plan workflow from commit
-  007 (it succeeded at 19:54Z) on branch `probe/007`: it failed the same way. actionlint was clean,
-  all action tags existed, and all runtimes were node24. The run page showed no reason.
-  Method: when every run fails at startup, re-run a known-good commit before suspecting the code.
+- `startup_failure` on every run from ~20:20Z on 2026-11-11 was a **GitHub outage**: webhooks
+  degraded, then a critical incident "Actions major outage" declared at 20:48Z. It is not shown on
+  githubstatus.com until declared. The byte-identical 007 Plan workflow (green at 19:54Z) failed the
+  same way on branch `probe/007`; after recovery the same account ran jobs again.
+  Method: check githubstatus.com, re-run a known-good commit, and wait for a queued run to finish
+  (it can sit queued for about 5 min) before blaming the code or the account.
 - Lint workflows with `docker run --rm -v "$PWD":/repo:ro -w /repo rhysd/actionlint:1.7.7`.
   It is clean apart from shellcheck style notes (SC2016 on intentional backticks).
+- **Version mismatch: workflow from main, scripts from the PR branch.** Apply checks out the PR
+  branch; a branch cut before a script existed failed with `scripts/pr-feedback.sh: No such file or
+  directory`. That was also a security gap (branch edits would run with the secret). Fix: check out
+  the workflow commit, copy `scripts/` to `$RUNNER_TEMP/ci-scripts` (`$CI_SCRIPTS`), then check out
+  the PR branch; `run-agent.sh` loads prompts from its own folder. Verify (step 8) must do the same.
+- Test scripts end to end without quota by putting a stub `claude` first on PATH that prints a
+  result JSON and saves its argv/prompt.
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.

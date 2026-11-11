@@ -19,6 +19,9 @@
 set -euo pipefail
 
 stage="${1:-}"; task_id="${2:-}"; change_id="${3:-}"
+# Prompts come from next to this script, so CI can run trusted scripts copied from the workflow's
+# commit against a PR branch checkout (which may carry older scripts).
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
@@ -59,7 +62,7 @@ esac
 
 prompt="$(sed -e "s|{{TASK_ID}}|$task_id|g" -e "s|{{CHANGE_ID}}|$change_id|g" \
   -e "s|{{FEEDBACK_FILE}}|$feedback|g" \
-  "scripts/prompts/$stage.md")"
+  "$script_dir/prompts/$stage.md")"
 
 out="${OPENSPEC_CI_OUT:-.openspec-ci/runs}"
 mkdir -p "$out"
@@ -76,7 +79,7 @@ rc=$?
 set -e
 
 jq -r '.result // empty' "$out/$stage.json" > "$out/$stage.md" 2>/dev/null || true
-jq -r '"run-agent: turns=\(.num_turns // "?") cost_usd=\(.total_cost_usd // "?") is_error=\(.is_error // "?")"' \
+jq -r '"run-agent: turns=\(.num_turns // "?") cost_usd=\(.total_cost_usd // "?") is_error=\(if .is_error == null then "?" else .is_error end)"' \
   "$out/$stage.json" >&2 2>/dev/null || true
 
 if [[ $rc -ne 0 ]] || [[ "$(jq -r '.is_error // false' "$out/$stage.json" 2>/dev/null)" == true ]]; then

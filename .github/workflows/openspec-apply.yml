@@ -7,6 +7,8 @@
 # ref) the event silently does nothing. Use the manual trigger then.
 # Model, task and change come from .openspec-ci/manifest.json (chosen once, at Plan).
 # Agent logic: scripts/run-agent.sh. Checks: scripts/openspec-ops.sh, scripts/pr-feedback.sh.
+# Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch:
+# the branch may carry older scripts, and branch edits must not run with the Claude secret.
 name: OpenSpec Apply
 
 on:
@@ -64,7 +66,16 @@ jobs:
           echo "head=$head" >> "$GITHUB_OUTPUT"
           echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v7
+      - name: Checkout workflow commit (trusted scripts)
+        uses: actions/checkout@v7
+
+      - name: Stash trusted scripts outside the workspace
+        run: |
+          cp -R scripts "$RUNNER_TEMP/ci-scripts"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
+
+      - name: Checkout PR branch (the work)
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr.outputs.head }}   # the PR branch itself, not the merge ref
 
@@ -100,7 +111,7 @@ jobs:
         run: |
           # Never applied yet: a manual run is a first apply; a change request takes all feedback.
           since="${APPLIED_AT:--}"
-          n="$(scripts/pr-feedback.sh "$PR" "$since" "$FEEDBACK")"
+          n="$("$CI_SCRIPTS"/pr-feedback.sh "$PR" "$since" "$FEEDBACK")"
           case "$GITHUB_EVENT_NAME" in
             pull_request) mode=apply ;;
             pull_request_review)
@@ -132,9 +143,9 @@ jobs:
           TASK: ${{ steps.m.outputs.task }}
           CHANGE: ${{ steps.m.outputs.change }}
         run: |
-          found="$(scripts/openspec-ops.sh change-id "$TASK")"
+          found="$("$CI_SCRIPTS"/openspec-ops.sh change-id "$TASK")"
           [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'"; exit 1; }
-          scripts/openspec-ops.sh validate "$CHANGE"
+          "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
 
       - name: Run agent
         env:
@@ -145,7 +156,7 @@ jobs:
           CHANGE: ${{ steps.m.outputs.change }}
         run: |
           if [[ "$MODE" == reapply ]]; then export OPENSPEC_CI_FEEDBACK="$FEEDBACK"; fi
-          scripts/run-agent.sh "$MODE" "$TASK" "$CHANGE"
+          "$CI_SCRIPTS"/run-agent.sh "$MODE" "$TASK" "$CHANGE"
 
       - name: Guard - allowed files only (reapply lists spec impact)
         env:
@@ -153,15 +164,15 @@ jobs:
           CHANGE: ${{ steps.m.outputs.change }}
           BASE_SHA: ${{ steps.m.outputs.base_sha }}
         run: |
-          scripts/openspec-ops.sh guard-diff "$MODE" "$CHANGE" "$BASE_SHA" > .openspec-ci/runs/spec-impact.txt
+          "$CI_SCRIPTS"/openspec-ops.sh guard-diff "$MODE" "$CHANGE" "$BASE_SHA" > .openspec-ci/runs/spec-impact.txt
           cat .openspec-ci/runs/spec-impact.txt
 
       - name: Check result (tasks, validate, build, lint)
         env:
           CHANGE: ${{ steps.m.outputs.change }}
         run: |
-          scripts/openspec-ops.sh tasks-complete "$CHANGE"
-          scripts/openspec-ops.sh validate "$CHANGE"
+          "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
+          "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
           pnpm build
           pnpm lint
 
@@ -173,7 +184,7 @@ jobs:
           STARTED_AT: ${{ steps.pr.outputs.started_at }}
         run: |
           # applied_at = this run's start: the next re-apply reads feedback newer than this.
-          scripts/openspec-ops.sh manifest stage="$MODE" status=applied model="$MODEL" \
+          "$CI_SCRIPTS"/openspec-ops.sh manifest stage="$MODE" status=applied model="$MODEL" \
             apply_run_id="$GITHUB_RUN_ID" apply_run_attempt="$GITHUB_RUN_ATTEMPT" \
             applied_at="$STARTED_AT" apply_count="$((COUNT + 1))"
 

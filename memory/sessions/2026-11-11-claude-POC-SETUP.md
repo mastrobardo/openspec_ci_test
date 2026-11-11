@@ -124,3 +124,18 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
 - Mistake: a background poller used an unquoted `?` URL in zsh and died silently. Recorded in
   ci-gotchas.
 - Handoff: `docs/PROGRESS.md` → "Next action" (retry Plan on the new repo).
+
+## Correction + commit 012
+- The 011 handoff was wrong twice. The new-repo Plan run was only queued (≈5 min) and then succeeded
+  (→ arcibardo PR #1). githubstatus.com then declared a critical Actions outage from 20:48Z. So the
+  failures were GitHub's, not the account's or the code's. Lesson: wait for runs to finish and check
+  the status page before concluding.
+- The user switched back to `mastrobardo`. Remotes: `origin` = old repo, `arcibardo` = fallback.
+- The Apply dispatch on the old repo (run 43100829053) ran a job and failed with
+  `scripts/pr-feedback.sh: No such file or directory`: the PR branch (cut at 007) carries old scripts.
+  Fixed in 012 with trusted scripts from the workflow commit (`$CI_SCRIPTS`); `run-agent.sh` loads
+  prompts from its own folder. Also fixed the `is_error=?` log line (jq `//` treats false as missing).
+- Tested with a stub `claude` on PATH against a worktree of `origin/openspec/task-1`: reapply stage
+  end to end (feedback, prompt from the trusted folder, no leftover placeholders, `--model sonnet`,
+  report extracted, guard OK, clean `git status`). actionlint: style notes only.
+- Commits 011 + 012 pushed to `origin` after the user approves.

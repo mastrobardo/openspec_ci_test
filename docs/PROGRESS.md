@@ -18,35 +18,32 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 8 | `.github/workflows/openspec-verify.yml` | todo | |
 | 9 | README: setup + run instructions | todo | |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
-| 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); then blocked by GitHub `startup_failure`; moved to `arcibardo/openspec_ci` | |
-| 11b | Move to `arcibardo/openspec_ci` (remote `origin`; old repo = remote `mastrobardo`), secret + PR permission set | done | 011 |
+| 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); GitHub outage 20:20–21:05Z; apply/verify todo | |
+| 11b | Fallback repo `arcibardo/openspec_ci` (Plan passed there → its PR #1); back on the old repo after the outage | done | 011 |
+| 11c | Apply runs trusted scripts from the workflow commit (`$CI_SCRIPTS`), prompts next to the script | done (stub-claude e2e on PR #1 branch) | 012 |
 
 ## Next action
 
-**Blocked on GitHub (as of 2026-11-11 ~21:00Z).** Every workflow run fails with `startup_failure` and
-no jobs, on both the old repo and the new account/repo. This is a GitHub-side problem: the
-byte-identical 007 Plan workflow that succeeded at 19:54Z fails the same way (see `ci-gotchas.md`).
-The project moved to `arcibardo/openspec_ci` (see `memory/repo/environment.md`).
+GitHub had an Actions outage on 2026-11-11 (~20:20Z to ~21:05Z); all `startup_failure` runs date from
+then. After recovery, Apply ran on the old repo and exposed a real bug (scripts run from the PR
+branch were older than the workflow), fixed in 012. `origin` is the old repo again; `arcibardo` is
+the fallback (see `memory/repo/environment.md`).
 
-1. **Retry one Plan run on the new repo** (user or agent, uses quota if it starts):
-   `gh workflow run "OpenSpec Plan" -R arcibardo/openspec_ci -f task=task-1 -f model=sonnet`.
-   Check with `gh api 'repos/arcibardo/openspec_ci/actions/runs?per_page=3'` (the list endpoint,
-   not the single-run one). If it still fails at startup a day later, contact GitHub Support with run
-   ids 43098031317 (old repo, `probe/007`) and 43098756576 (new repo).
-2. When Plan works: it opens draft PR #1 **on the new repo** (the old PR #1 stays on the old repo,
-   abandoned). Then: mark it Ready → Apply runs. The PR is created after the workflows exist, so the
-   merge ref is not stale; keep dispatch `-f pr=N` as the fallback.
-3. Test re-apply: "Request changes" with comments (an inline nit + a requirement such as "also show
-   the git SHA"). Expected: a re-apply comment with a Spec impact box, follow-up tasks, and specs
-   changed only for requirement items.
-4. **Step 8: Verify** (plan to be shown first): `pull_request_review` approved (+ dispatch `pr`), model
-   from the manifest, `tasks-complete` + `validate` + `run-agent.sh verify` (read-only), report as a PR
-   comment, exit 3/4 = failed check, concurrency group shared with Apply per PR. Open question: also
-   run on `synchronize` so it can be a required check?
+1. **Apply on PR #1 (old repo)**: `gh workflow run "OpenSpec Apply" -R mastrobardo/openspec_ci_test -f pr=1`
+   (PR #1's merge ref is stale, so use dispatch). Expect mode `apply` and model `sonnet`, then a push
+   of `openspec(task-1): apply …` and a PR comment. Check with
+   `gh api 'repos/mastrobardo/openspec_ci_test/actions/runs?per_page=3'` (the list endpoint). If it fails:
+   `gh run download <id> -R … -D <fresh dir>` and read `.result` / `.permission_denials` in `apply.json`.
+2. **Re-apply test**: "Request changes" on PR #1 with comments (an inline nit + a requirement such as
+   "also show the git SHA"); then dispatch `pr=1` again (stale merge ref). Expect mode `reapply`, a
+   Spec impact box, follow-up tasks, and specs changed only for requirement items.
+3. **Step 8: Verify** (plan to be shown first): `pull_request_review` approved (+ dispatch `pr`), model
+   from the manifest, trusted `$CI_SCRIPTS` pattern, `tasks-complete` + `validate` +
+   `run-agent.sh verify` (read-only), PR comment, exit 3/4 = failed check, per-PR concurrency group
+   shared with Apply. Open question: also run on `synchronize` so it can be a required check?
 
-Leftovers on the old repo (`mastrobardo/openspec_ci_test`): branch `probe/007`, PR #1, and
-uncancellable `startup_failure` runs. Deleting `probe/007` needs the `mastrobardo` gh account (the
-user decides).
+Leftovers on the old repo: branch `probe/007` (safe to delete) and uncancellable `startup_failure`
+runs from the outage.
 
 ## Facts for the next session
 

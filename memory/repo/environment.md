@@ -3,12 +3,13 @@ name: environment
 description: Tool versions, repo layout and auth approach for the OpenSpec CI POC
 ---
 
-- Repo (since 2026-11-11 ~20:50Z): `github.com/arcibardo/openspec_ci`, git remote `origin`, gh
-  account `arcibardo` (active). The previous repo `github.com/mastrobardo/openspec_ci_test` is kept as
-  remote `mastrobardo` (it holds PR #1 and the stuck runs). Work on `main`.
-- New repo settings (checked 2026-11-11): Actions enabled, default workflow permissions `read`,
-  can create/approve PRs = true, secret `CLAUDE_CODE_OAUTH_TOKEN` set by the user in the web UI.
-- Always pass `-R arcibardo/openspec_ci` to `gh`: with two remotes, gh may pick the wrong one.
+- Repo: `github.com/mastrobardo/openspec_ci_test` = git remote `origin`, gh account `mastrobardo`
+  (active). Work on `main`.
+- Fallback (created 2026-11-11 during a GitHub outage): `github.com/arcibardo/openspec_ci` = git
+  remote `arcibardo`, gh account `arcibardo` (logged in, not active). Same settings: secret set,
+  default workflow permissions `read`, create/approve PRs on. Its own draft PR #1 (task-1) exists.
+  Pushing there needs `gh auth switch -u arcibardo`.
+- Always pass `-R <owner/repo>` to `gh`: with two remotes, gh may pick the wrong one.
 - App: Vite + React 19 + TS, pnpm. Scripts: `build` (tsc -b && vite build), `lint`. No tests.
 - Local tools (2026-11-11): openspec 1.14.1, Claude Code 2.1.322, gh 2.94.0, node 22.22.0.
 - OpenSpec initialized with `openspec init --tools claude --no-animation --no-copilot-cloud .`,
