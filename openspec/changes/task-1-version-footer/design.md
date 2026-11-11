@@ -10,7 +10,7 @@ Vite 8 + React 19 + TypeScript app. `src/App.tsx` renders a fragment of sections
 - Version text derived from `package.json` at build time.
 
 **Non-Goals:**
-- Build date, styling beyond readability.
+- Build date, styling beyond readability. (The git SHA was originally a non-goal; it is now in scope per the recorded scope change in proposal.md.)
 
 ## Decisions
 
