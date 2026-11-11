@@ -1,3 +1,10 @@
+footer {
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text);
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;
