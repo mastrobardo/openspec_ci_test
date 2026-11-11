@@ -212,3 +212,11 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
   wrong sha, archive, guard ok and a stray file), Apply's refusal on an archived manifest; actionlint
   clean (switched `ls` → `find` per SC2012).
 - Commit `018` and push after the user approves.
+
+## Lifecycle complete (commit 019, 2026-11-12)
+- Re-Approve → Verify 43115763455 PASS but no archive job (stale merge ref on 016). The user
+  dispatched Verify (43116149538): PASS → `archive` waited for the environment reviewer → approved
+  after 18 s → archive commit in 17 s → the user squash merged PR #1 (`2362212`, 23:01Z).
+- `main` verified: main spec `app-version-footer`, archived change folder, no active change.
+- Recorded in poc-results (run log, totals 15 runs / 266 turns / $1.99 notional, problem row) and in
+  ci-gotchas (the trampoline fix proposal). Next session: step 9 README, then the trampoline.

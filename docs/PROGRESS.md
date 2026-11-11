@@ -20,34 +20,35 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 8c | D12 enforced: `openspec-ops.sh scope-documented` after re-apply (proposal/specs changed → section with `- F<n>` required); literal format in the reapply prompt | done; passed on GitHub in run 43114321202 | 015 |
 | 8b | `/reapply [text]` PR comment command (`issue_comment`, owner/member/collaborator only, 👀 ack, bare command dropped from feedback) | done; passed on GitHub (43114321202); a leading space skips it (accepted) | 016 |
 | 8d | Settings via API: environment `openspec-archive` (required reviewer), squash-only merges | done | (API, 2026-11-11) |
-| 8e | Gated archive: second Verify job (D13), job-level concurrency, Apply/Verify refuse archived | done (archive steps run locally on PR #1); **not yet run on GitHub** | 018 |
+| 8e | Gated archive: second Verify job (D13), job-level concurrency, Apply/Verify refuse archived | done; on GitHub run 43116149538 (dispatch) → gate approved → archived | 018 |
 | 9 | README: setup + run instructions | todo | |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
-| 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); GitHub outage 20:20–21:05Z; apply/verify todo | |
+| 11 | E2E run: Plan → draft PR → Ready → Apply → re-apply → Approve → Verify → archive → squash merge | **done**: PR #1 merged as `2362212` (2026-11-11 23:01Z) | 019 (record) |
 | 11b | Fallback repo `arcibardo/openspec_ci` (Plan passed there → its PR #1); back on the old repo after the outage | done | 011 |
 | 11c | Apply runs trusted scripts from the workflow commit (`$CI_SCRIPTS`), prompts next to the script | done; Apply + 2 re-applies passed on GitHub (PR #1, spec impact shown for the SHA requirement) | 012 |
 
 ## Next action
 
-State: PR #1 (`mastrobardo/openspec_ci_test`) was re-applied at 22:44 (`/reapply`), so it needs
-re-approval. 018 adds the gated archive. Keep `memory/repo/poc-results.md` updated in every commit.
+State (2026-11-12): **the full lifecycle is proven on GitHub.** PR #1 went Plan → Apply → re-apply ×5
+(incl. `/reapply`) → Verify PASS → gated archive → squash merge `2362212`. `main` holds
+`openspec/specs/app-version-footer/spec.md` and `openspec/changes/archive/2026-11-11-task-1-version-footer/`.
+Full record for the presentation: `memory/repo/poc-results.md` (update it in every commit).
 
-1. **E2E finish on PR #1 (the user does this):**
-   a. Re-approve PR #1 → Verify should PASS (the merge ref may be stale for the review event; if no
-      Verify run appears: `gh workflow run "OpenSpec Verify" -R mastrobardo/openspec_ci_test -f pr=1`).
-   b. The run then shows **Waiting for review: openspec-archive** → Review deployments → Approve and
-      deploy. Expect the `openspec(task-1): archive …` commit and a 📦 comment.
-   c. **Squash merge** PR #1. Afterwards, `main` has `openspec/specs/app-version-footer/spec.md` and
-      `openspec/changes/archive/<date>-task-1-version-footer/`.
-   Then record the runs (turns, cost, verdict) in `poc-results.md`.
-2. **Step 9: README** (setup incl. environment + squash settings, lifecycle, triggers + dispatch
-   fallbacks, `/reapply`, model dropdown, D12, archive gate, troubleshooting → ci-gotchas) and
-   presentation material from `poc-results.md`.
-3. Optional: a second task (task-2..4) through the full flow on a fresh PR (no stale merge refs), and
-   two PRs in parallel.
-
-Leftovers on the old repo: branch `probe/007` (safe to delete) and uncancellable `startup_failure`
-runs from the outage.
+The user resumes with **step 9**:
+1. **Step 9: README** (commit `020`; show the outline first): setup (secret, Actions settings,
+   environment `openspec-archive`, squash-only), a lifecycle diagram, every trigger + its dispatch
+   fallback, `/reapply [text]` (must start the comment), model dropdown, the D12 scope rule, the
+   archive gate ("Review deployments"), troubleshooting → `memory/repo/ci-gotchas.md`. Replace the
+   Vite template README content.
+2. **Trampoline fix** (recommended before more test runs): PR-event workflows (`pull_request`,
+   `pull_request_review`) become one job that runs `gh workflow run "OpenSpec Apply|Verify" -f pr=N`
+   (`permissions: actions: write`); the real workflows keep only `workflow_dispatch` (+ `issue_comment`
+   for `/reapply`). This ends stale-merge-ref surprises (3 round trips on PR #1). Check: a dispatched
+   run's `review.commit_id` is gone, so pass the approved sha as an input for the stale-approval check.
+3. **Clean second run**: task-2 (or 3/4) through the full flow on a new PR, ideally two PRs in
+   parallel (concurrency), for clean presentation data.
+4. **Presentation** from `poc-results.md` (outline or deck on request).
+5. Cleanup: delete `probe/007` on the old repo; optionally retire `arcibardo/openspec_ci`.
 
 ## Facts for the next session
 

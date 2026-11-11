@@ -10,8 +10,9 @@ Related: [[environment]] [[ci-gotchas]] [[conventions]]; decisions in `docs/PLAN
 ## 1. What the POC proves
 An OpenSpec change can be driven end to end by Claude Code (`claude -p`, subscription token) in
 GitHub Actions, with humans gating every stage through normal PR actions. Proven on PR #1
-(`tasks/task-1.txt`: version footer), 2026-11-11: Plan → Apply → 4 re-applies driven by review
-feedback (including a reviewer-driven scope change) → Verify PASS. Gated archive built in 018 (local tests); GitHub run pending.
+(`tasks/task-1.txt`: version footer), 2026-11-11: Plan → Apply → 5 re-applies driven by review
+feedback (including a reviewer-driven scope change and a `/reapply` comment) → Verify PASS → gated
+archive (human approval) → squash merge `2362212` at 23:01Z. **Complete lifecycle proven.**
 
 ## 2. Lifecycle (as built)
 | Stage | Trigger (human gate) | Agent? | Deterministic checks | Output |
@@ -48,11 +49,17 @@ plus a per-run artifact (`<stage>.json` with turns, cost, model, denials).
 | 22:06 | 43108985466 | Verify (Approve, auto) | ✅ **PASS** | 15 turns, $0.13 |
 | 22:41 | 43113921088 | `/reapply` comment (016) | skipped: the comment began with a space (`startsWith` has no trim) | – |
 | 22:44 | 43114321202 | `/reapply` comment (016) | ✅ 👀 ack, 2 items (incl. the skipped comment), requirement → `/opsx:update`, **015 scope check passed** | 24 turns, $0.14 |
+| 22:46 | 43114589446 | Verify (Approve, auto) | ✅ PASS (ran the pre-018 workflow: no archive job) | 14 turns, $0.13 |
+| 22:55 | 43115763455 | Verify (re-Approve, auto) | ✅ PASS, again no archive job: stale merge ref (built on 016) | 16 turns, $0.10 |
+| 22:58 | 43116149538 | Verify dispatch (from main) | ✅ PASS → `archive` job waited for the `openspec-archive` reviewer (approved after 18 s) → archived in 17 s | 14 turns, $0.07 |
+| 23:01 | – | Squash merge PR #1 | ✅ `2362212` on main: `openspec/specs/app-version-footer/spec.md` + `openspec/changes/archive/2026-11-11-task-1-version-footer/` | – |
 
-PR #1 after the 22:44 re-apply: open, needs re-approval (new commit), not archived or merged.
-Totals (12 agent runs incl. fallback): 222 turns, $1.69 notional (`total_cost_usd`, charged to the
+PR #1 final: archived and squash merged (`2362212`); `main` has no active change.
+Totals (15 agent runs incl. fallback): 266 turns, $1.99 notional (`total_cost_usd`, charged to the
 subscription quota, not billed). Per stage on CI with Sonnet: Plan 18–21 turns (~$0.13–0.20),
-Apply 28 (~$0.19), Re-apply 12–32 (~$0.09–0.19; `/reapply` 24, $0.14), Verify 11–16 (~$0.11–0.14). Local plan runs before
+Apply 28 (~$0.19), Re-apply 12–32 (~$0.09–0.19; `/reapply` 24, $0.14), Verify 11–16 (~$0.07–0.14), Archive no agent
+(~17 s job, behind a human gate). Wall clock for PR #1: 19:57 → 23:01 (≈3 h), including building
+and debugging the pipeline itself and a 45-min GitHub outage. Local plan runs before
 CI: 21–41 turns on Fable ($0.46–1.92). Every CI run used `claude-sonnet-5-5` (dropdown default
 `sonnet`) with 0 permission denials.
 
@@ -78,6 +85,7 @@ merges (PR title + body).
 | Scope note in the wrong place | Verify FAIL a stage later | a structural rule was left to agent judgment | deterministic `scope-documented` + literal format (015) |
 | Comment posted seconds after the review | not considered | feedback cutoff = run start | it rolls to the next run; `/reapply` command (016) |
 | `/reapply` with a leading space | run skipped | expression `startsWith` without trim | type it at the start (feedback is not lost: it rolls to the next run); optional gate job with a bash regex |
+| Gate missing after a re-approve | Verify PASS but no `archive` job | the review event ran an older Verify from the stale merge ref | dispatch from main; proposed fix: trampoline (PR events only start the main-branch workflow) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -110,5 +118,6 @@ merges (PR title + body).
   PR title, message = PR body.
 
 ## 9. Not yet proven (be honest on slides)
-- Gated archive (018) on GitHub (local: archive step on PR #1 → main spec `app-version-footer`, 5 requirements; validate --all OK). (`/reapply` and the 015 scope check are proven: run 43114321202.)
+- Nothing in the PR #1 lifecycle. Still open: the trampoline fix for stale merge refs (the archive gate
+  was reached only via dispatch). (`/reapply` and the 015 scope check are proven: run 43114321202.)
 - Concurrency of several PRs in parallel, other tasks (task-2..4), the Opus/Fable models in CI.

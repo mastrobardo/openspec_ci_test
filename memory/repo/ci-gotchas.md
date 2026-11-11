@@ -99,6 +99,10 @@ Learned testing Apply on PR #1 (2026-11-11):
 - A job waiting for environment approval keeps its run "in progress". Workflow-level concurrency
   would block Apply on the same PR, so Verify and archive use job-level groups
   (`openspec-pr-N` vs `openspec-archive-N`).
+- Third stale-merge-ref hit (2026-11-11 22:55): re-Approve ran Verify from a merge ref built on 016,
+  so no `archive` job. Proposed permanent fix (trampoline): PR-event workflows contain one job that
+  runs `gh workflow run "OpenSpec <X>" -f pr=N` (needs `actions: write`); `workflow_dispatch`
+  events created by GITHUB_TOKEN do start workflows, and they always run from main.
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.
