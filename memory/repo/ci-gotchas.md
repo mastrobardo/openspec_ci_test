@@ -93,6 +93,12 @@ Learned testing Apply on PR #1 (2026-11-11):
 - GitHub expressions have no `trim()`: `startsWith(comment.body, '/reapply')` skips a comment with
   a leading space or newline (run 43113921088). Accepted as is (user decision); the fix would be a
   gate job with a bash regex `^[[:space:]]*/reapply([[:space:]]|$)`.
+- `openspec archive -y` names the folder `<runner date>-<change>` (the runner clock is UTC), deletes
+  `openspec/changes/<change>/`, and creates or updates `openspec/specs/<cap>/spec.md`. Afterwards
+  `change-id` finds nothing, so Apply/Verify refuse `stage=archived` explicitly.
+- A job waiting for environment approval keeps its run "in progress". Workflow-level concurrency
+  would block Apply on the same PR, so Verify and archive use job-level groups
+  (`openspec-pr-N` vs `openspec-archive-N`).
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.

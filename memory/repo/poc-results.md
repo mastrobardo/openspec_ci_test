@@ -11,7 +11,7 @@ Related: [[environment]] [[ci-gotchas]] [[conventions]]; decisions in `docs/PLAN
 An OpenSpec change can be driven end to end by Claude Code (`claude -p`, subscription token) in
 GitHub Actions, with humans gating every stage through normal PR actions. Proven on PR #1
 (`tasks/task-1.txt`: version footer), 2026-11-11: Plan → Apply → 4 re-applies driven by review
-feedback (including a reviewer-driven scope change) → Verify PASS. Archive (gated) is next (017).
+feedback (including a reviewer-driven scope change) → Verify PASS. Gated archive built in 018 (local tests); GitHub run pending.
 
 ## 2. Lifecycle (as built)
 | Stage | Trigger (human gate) | Agent? | Deterministic checks | Output |
@@ -20,7 +20,7 @@ feedback (including a reviewer-driven scope change) → Verify PASS. Archive (ga
 | Apply | "Ready for review" (or dispatch `pr`) | yes (`/opsx:apply`) | guard-diff apply (code + tasks.md only), tasks-complete, validate, build, lint | commit on PR, report comment |
 | Re-apply | "Request changes", `/reapply [text]` comment (016), or dispatch | yes (classify → `/opsx:update` → `/opsx:apply`) | pr-feedback (owner/member/collab, since last apply), guard-diff reapply (+ spec impact), scope-documented (015), checks | commit, comment with ⚠️ Spec impact box |
 | Verify | "Approve" (or dispatch) | yes (`/opsx:verify`, read-only) | stale-approval check, change-id, validate, tasks-complete, guard-diff verify (no changes) | ✅/❌/⚠️ verdict comment, job fails unless PASS; never commits |
-| Archive (017) | Environment `openspec-archive` approval after PASS | no (`openspec archive -y`) | verified sha == head, guard (only `openspec/`), validate | archive commit, then squash merge |
+| Archive (018) | Second job of the Verify run: after PASS, waits for the `openspec-archive` environment reviewer ("Review deployments → Approve and deploy") | no (`openspec archive -y`, no Claude secret) | verified sha == PR head, validate before, `validate --all --strict` after, guard (only `openspec/`) | archive commit on the PR branch (change → `openspec/changes/archive/<date>-<change>/`, delta → `openspec/specs/<cap>/spec.md`), 📦 comment, then squash merge |
 
 Layers (D6): workflows orchestrate only; `scripts/run-agent.sh` (agent adapter, per-stage tool
 allowlist), `scripts/prompts/*.md` (stage prompts), `scripts/openspec-ops.sh` (deterministic checks),
@@ -110,5 +110,5 @@ merges (PR title + body).
   PR title, message = PR body.
 
 ## 9. Not yet proven (be honest on slides)
-- Gated archive (017) on GitHub. (`/reapply` and the 015 scope check are proven: run 43114321202.)
+- Gated archive (018) on GitHub (local: archive step on PR #1 → main spec `app-version-footer`, 5 requirements; validate --all OK). (`/reapply` and the 015 scope check are proven: run 43114321202.)
 - Concurrency of several PRs in parallel, other tasks (task-2..4), the Opus/Fable models in CI.

@@ -107,6 +107,8 @@ jobs:
           task="$(jq -r '.task // empty' "$m")"
           change="$(jq -r '.change // empty' "$m")"
           [[ "$HEAD_REF" == "openspec/$task" ]] || { echo "::error::manifest task '$task' does not match $HEAD_REF"; exit 1; }
+          [[ "$(jq -r '.stage // empty' "$m")" != archived ]] \
+            || { echo "::error::change already archived; revert the archive commit to reopen it"; exit 1; }
           # Single point of model choice: the alias picked at Plan. Older manifests only have
           # plan_model (the resolved id); use it if it is a single model, else fall back to sonnet.
           model="$(jq -r '.model // empty' "$m")"

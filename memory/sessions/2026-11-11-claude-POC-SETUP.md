@@ -198,3 +198,17 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
   chose not to fix it. The second comment → 43114321202 ✅: 👀 ack, 2 items (the skipped comment
   rolled over), `/opsx:update`, and the 015 `scope-documented` step passed (first real run). 24 turns,
   $0.14. Recorded in poc-results. Commit `017` (docs only); archive moves to 018.
+
+## Step 8e (commit 018): gated archive
+- Dry run first: `openspec archive -y` on a PR #1 worktree → created `openspec/specs/app-version-footer/
+  spec.md` (5 requirements), moved the change to `archive/2026-11-11-task-1-version-footer/`;
+  `validate --all --strict` OK; all paths under `openspec/`.
+- openspec-verify.yml: job-level concurrency (verify `openspec-pr-N`, archive `openspec-archive-N`);
+  verify outputs; archive job (needs verify, PASS only, environment `openspec-archive`, contents write,
+  no Claude secret): the PR has not moved, trusted scripts, checkout head == verified sha, validate →
+  archive → validate --all → guard-plan-diff → manifest stage=archived → push → 📦 comment.
+  Apply/Verify refuse `stage=archived`.
+- Tests: the archive job's steps extracted from the YAML and run on a PR #1 worktree (confirm ok and
+  wrong sha, archive, guard ok and a stray file), Apply's refusal on an archived manifest; actionlint
+  clean (switched `ls` → `find` per SC2012).
+- Commit `018` and push after the user approves.

@@ -20,7 +20,7 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 8c | D12 enforced: `openspec-ops.sh scope-documented` after re-apply (proposal/specs changed → section with `- F<n>` required); literal format in the reapply prompt | done; passed on GitHub in run 43114321202 | 015 |
 | 8b | `/reapply [text]` PR comment command (`issue_comment`, owner/member/collaborator only, 👀 ack, bare command dropped from feedback) | done; passed on GitHub (43114321202); a leading space skips it (accepted) | 016 |
 | 8d | Settings via API: environment `openspec-archive` (required reviewer), squash-only merges | done | (API, 2026-11-11) |
-| 8e | Gated archive: second Verify job (D13) | todo | 018 |
+| 8e | Gated archive: second Verify job (D13), job-level concurrency, Apply/Verify refuse archived | done (archive steps run locally on PR #1); **not yet run on GitHub** | 018 |
 | 9 | README: setup + run instructions | todo | |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
 | 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); GitHub outage 20:20–21:05Z; apply/verify todo | |
@@ -29,26 +29,22 @@ unchecked step. **Every step needs explicit user approval before it is committed
 
 ## Next action
 
-State: PR #1 (`mastrobardo/openspec_ci_test`) is approved with Verify PASS (43108985466), not archived,
-not merged. The full record for the presentation is in `memory/repo/poc-results.md`: **update it in
-every commit.**
+State: PR #1 (`mastrobardo/openspec_ci_test`) was re-applied at 22:44 (`/reapply`), so it needs
+re-approval. 018 adds the gated archive. Keep `memory/repo/poc-results.md` updated in every commit.
 
-1. **Re-approve PR #1** (the 22:44 re-apply pushed a commit) → Verify → expect PASS with the new
-   "v0.0.0" scope change documented. The archive job comes with 018.
-2. **Step 8e, commit `018`: gated archive (D13)** (show the plan/diff first):
-   - In `openspec-verify.yml`, move concurrency to job level: `verify` → `openspec-pr-N`,
-     `archive` → `openspec-archive-N`, so a waiting archive never blocks Apply.
-   - Job `archive`: `needs: verify`, `if: needs.verify.outputs.verdict == 'PASS'`,
-     `environment: openspec-archive`, `contents: write` + `pull-requests: write`, no Claude secret.
-     Steps: resolve the PR and refuse if the head ≠ the verified sha; trusted scripts; checkout head;
-     `openspec archive -y <change>`; `openspec validate --all --strict` (or `--specs`); guard
-     (`guard-plan-diff`: only `openspec/` + manifest); manifest `stage=archived`; commit/push; comment
-     "archived, ready to squash merge".
-   - Expose `verdict` and `sha` as `verify` job outputs.
-   - Test: run `openspec archive -y` locally on a worktree of PR #1 (no push) to see the exact file
-     moves and main spec creation; actionlint.
-3. **Step 9: README** (setup, lifecycle incl. archive + squash, triggers + fallbacks, model dropdown,
-   D12, troubleshooting) and presentation material from `poc-results.md`.
+1. **E2E finish on PR #1 (the user does this):**
+   a. Re-approve PR #1 → Verify should PASS (the merge ref may be stale for the review event; if no
+      Verify run appears: `gh workflow run "OpenSpec Verify" -R mastrobardo/openspec_ci_test -f pr=1`).
+   b. The run then shows **Waiting for review: openspec-archive** → Review deployments → Approve and
+      deploy. Expect the `openspec(task-1): archive …` commit and a 📦 comment.
+   c. **Squash merge** PR #1. Afterwards, `main` has `openspec/specs/app-version-footer/spec.md` and
+      `openspec/changes/archive/<date>-task-1-version-footer/`.
+   Then record the runs (turns, cost, verdict) in `poc-results.md`.
+2. **Step 9: README** (setup incl. environment + squash settings, lifecycle, triggers + dispatch
+   fallbacks, `/reapply`, model dropdown, D12, archive gate, troubleshooting → ci-gotchas) and
+   presentation material from `poc-results.md`.
+3. Optional: a second task (task-2..4) through the full flow on a fresh PR (no stale merge refs), and
+   two PRs in parallel.
 
 Leftovers on the old repo: branch `probe/007` (safe to delete) and uncancellable `startup_failure`
 runs from the outage.
