@@ -166,3 +166,14 @@ Next session starts at step 5. See `docs/PROGRESS.md` → "Next action".
   worktree received the new prompt. The PR #1 proposal has no formal section yet → expect FAIL on
   re-verify, then re-apply → PASS.
 - Commit `014` and push after the user approves.
+
+## D12 on GitHub + commit 015
+- Verify dispatched after 014 (43107494205) → FAIL (undocumented, as predicted). The user requested
+  changes → re-apply 43107702755 recorded the SHA as a bold inline bullet under "What Changes" → the
+  Approve event started Verify on its own (43107919479) → FAIL: the section was missing.
+- 015: `openspec-ops.sh scope-documented <change> <impact-file>` (triggers only on proposal.md/specs/
+  changes; requires `- F<n>` bullets inside the exact section), a new Apply step after guard-diff in
+  reapply mode, and a literal format example in reapply.md (end of proposal, move earlier inline notes).
+- Checked first: `openspec validate --strict` accepts the extra section. 7 local cases as expected;
+  actionlint has no new findings.
+- `/reapply` moves to 016. Commit `015` and push after the user approves.

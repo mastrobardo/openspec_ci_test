@@ -16,6 +16,10 @@
 #                              change's artifacts except tasks.md. reapply prints the changed
 #                              artifacts (spec impact) on stdout. verify is read-only: any
 #                              changed file fails.
+#   scope-documented <change-id> <impact-file>
+#                              after a reapply: if the impact list (guard-diff reapply stdout)
+#                              touches proposal.md or specs/, proposal.md must have a
+#                              '## Scope changes from review' section with '- F<n>' entries (D12)
 #   manifest <key=value>...    create/merge .openspec-ci/manifest.json (sets created_at once,
 #                              updated_at always)
 # Exit codes
@@ -111,6 +115,27 @@ cmd_guard_diff() {
   echo "openspec-ops: $mode diff OK ($(grep -c . <<<"$paths" || true) files, ${#impact[@]} artifact changes)" >&2
 }
 
+cmd_scope_documented() {
+  local change_id="${1:-}" impact="${2:-}"
+  valid_change_id "$change_id"
+  [[ -f "$impact" ]] || die "impact file not found: '$impact'"
+  local own="openspec/changes/$change_id/" requirement
+  requirement="$(grep -E "^${own}(proposal\.md|specs/)" "$impact" || true)"
+  if [[ -z "$requirement" ]]; then
+    echo "openspec-ops: no proposal/spec changes; nothing to document" >&2
+    return 0
+  fi
+  local file="${own}proposal.md" entries
+  [[ -f "$file" ]] || fail "$file not found"
+  entries="$(awk '/^## Scope changes from review[[:space:]]*$/ {f=1; next} /^## / {f=0}
+                  f && /^- F[0-9]+/ {n++} END {print n+0}' "$file")"
+  if [[ "$entries" -eq 0 ]]; then
+    echo "$requirement" >&2
+    fail "proposal/specs changed but $file has no '## Scope changes from review' section with '- F<n>' entries"
+  fi
+  echo "openspec-ops: scope changes documented ($entries entr$( [[ $entries -eq 1 ]] && echo y || echo ies))" >&2
+}
+
 cmd_manifest() {
   [[ $# -gt 0 ]] || die "manifest needs at least one key=value"
   need jq
@@ -141,6 +166,7 @@ case "$command" in
   tasks-complete)  cmd_tasks_complete "$@" ;;
   guard-plan-diff) cmd_guard_plan_diff "$@" ;;
   guard-diff)      cmd_guard_diff "$@" ;;
+  scope-documented) cmd_scope_documented "$@" ;;
   manifest)        cmd_manifest "$@" ;;
-  *) die "usage: $0 <change-id|validate|tasks-complete|guard-plan-diff|guard-diff|manifest> [args]" ;;
+  *) die "usage: $0 <change-id|validate|tasks-complete|guard-plan-diff|guard-diff|scope-documented|manifest> [args]" ;;
 esac

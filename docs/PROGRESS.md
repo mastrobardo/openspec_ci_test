@@ -16,8 +16,9 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 7a | `openspec-apply.yml` first apply (`ready_for_review` + dispatch `pr`), `guard-diff`, manifest `model` alias | done (static + local tests); **not yet run on GitHub** (see Next action) | 009 |
 | 7b | Re-apply with review feedback (`changes_requested`), `pr-feedback.sh`, `reapply` prompt/stage | done (static + simulated); **not yet run on GitHub** | 010 |
 | 8 | `openspec-verify.yml` (Approve + dispatch; read-only, no commit; verdict comment; stale-approval check), `guard-diff verify`, per-PR concurrency `openspec-pr-N` shared with Apply | done; ran on GitHub (dispatch; the approval event saw a stale merge ref) → FAIL for scope (→ D12) | 013 |
-| 8a | Scope rule D12: re-apply writes `## Scope changes from review`; Verify: documented = NOTE, undocumented = FAIL | done (prompt tests); **not yet run on GitHub** | 014 |
-| 8b | `/reapply` PR comment command (`issue_comment`, owner/member/collaborator only) | todo | 015 |
+| 8a | Scope rule D12: re-apply writes `## Scope changes from review`; Verify: documented = NOTE, undocumented = FAIL | done; on GitHub, Verify correctly failed an inline (non-section) note → 015 | 014 |
+| 8c | D12 enforced: `openspec-ops.sh scope-documented` after re-apply (proposal/specs changed → section with `- F<n>` required); literal format in the reapply prompt | done (7 local cases); **not yet run on GitHub** | 015 |
+| 8b | `/reapply` PR comment command (`issue_comment`, owner/member/collaborator only) | todo | 016 |
 | 9 | README: setup + run instructions | todo | |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
 | 11 | E2E run: Plan → draft PR → Ready → Apply → Approve → Verify | plan passed in CI on the old repo (run 43091589972 → PR #1); GitHub outage 20:20–21:05Z; apply/verify todo | |
@@ -26,18 +27,17 @@ unchecked step. **Every step needs explicit user approval before it is committed
 
 ## Next action
 
-State: Plan → Apply → re-apply ×2 → Verify all ran on GitHub for PR #1 (`mastrobardo/openspec_ci_test`).
-Verify (run 43106699322) returned FAIL: the reviewer-requested commit SHA contradicts the task's
-out-of-scope list. That led to D12 (`docs/PLAN.md`), implemented in 014.
+State on PR #1 (`mastrobardo/openspec_ci_test`): the Approve event now starts Verify on its own (the merge
+ref is fresh). Verify 43107919479 returned FAIL because re-apply (43107702755) recorded the SHA scope
+change as an inline bullet under "What Changes", not in `## Scope changes from review`. 015 enforces
+the section deterministically.
 
-1. **Test D12 on PR #1 (the user does this):**
-   a. `gh workflow run "OpenSpec Verify" -R mastrobardo/openspec_ci_test -f pr=1`. PR #1's proposal
-      credits F1/F2 only in prose, with no `## Scope changes from review` section, so the expected
-      result is FAIL ("undocumented").
-   b. Then "Request changes" (comment e.g. "record the SHA as an approved scope change") → re-apply
-      should write the section → Approve (or dispatch Verify) → expect PASS with a `## Scope changes`
-      NOTE.
-2. **Step 8b, commit `015`** (agreed; show the plan/diff first): the `/reapply` comment command. Trigger
+1. **Test 015 on PR #1 (the user does this):** "Request changes" with e.g. "move the SHA scope note
+   into the Scope changes from review section". Expect: re-apply writes the section, the new step
+   "Check scope changes are documented" passes, then a push. Then Approve → Verify should PASS, with
+   the SHA as a documented NOTE. If re-apply fails at the new step, the agent ignored the format;
+   read `reapply.md` in the artifact.
+2. **Step 8b, commit `016`** (agreed; show the plan/diff first): the `/reapply` comment command. Trigger
    `issue_comment: [created]` in `openspec-apply.yml`; job `if`: `github.event.issue.pull_request &&
    startsWith(github.event.comment.body, '/reapply') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
    github.event.comment.author_association)`. The PR number is `github.event.issue.number`, and the

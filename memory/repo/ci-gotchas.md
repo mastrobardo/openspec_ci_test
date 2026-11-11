@@ -79,6 +79,12 @@ Learned testing Apply on PR #1 (2026-11-11):
   not the current head (stale approval).
 - `set -o pipefail` + `grep` with no match inside `$(...)` aborts the script (exit 1). Use
   `{ grep … || true; } | …` where "no match" is a valid result (run-agent's missing verdict → 4).
+- Don't leave a **structural** rule to agent judgment alone. D12 asked re-apply for a
+  `## Scope changes from review` section; the agent wrote an inline bullet under "What Changes"
+  (likely steered by the `/opsx:update` skill's proposal layout), and Verify failed the PR a stage
+  later. Fix: a literal example in the prompt + a deterministic check (`scope-documented`) right
+  after the agent, so the stage that made the mistake fails, before pushing.
+- `openspec validate --strict` (1.14.1) accepts extra `##` sections in proposal.md.
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.

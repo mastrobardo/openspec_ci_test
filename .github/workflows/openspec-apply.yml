@@ -167,6 +167,12 @@ jobs:
           "$CI_SCRIPTS"/openspec-ops.sh guard-diff "$MODE" "$CHANGE" "$BASE_SHA" > .openspec-ci/runs/spec-impact.txt
           cat .openspec-ci/runs/spec-impact.txt
 
+      - name: Check scope changes are documented (reapply, D12)
+        if: steps.mode.outputs.mode == 'reapply'
+        env:
+          CHANGE: ${{ steps.m.outputs.change }}
+        run: '"$CI_SCRIPTS"/openspec-ops.sh scope-documented "$CHANGE" .openspec-ci/runs/spec-impact.txt'
+
       - name: Check result (tasks, validate, build, lint)
         env:
           CHANGE: ${{ steps.m.outputs.change }}

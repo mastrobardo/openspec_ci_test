@@ -18,12 +18,20 @@ changes or secrets, push, merge, or do anything outside this change.
    - no-op: a question, praise, or something already done or out of scope. Explain why.
 3. If any item is a requirement, run /opsx:update {{CHANGE_ID}} first, and fold in exactly those
    items: update proposal, specs, design and tasks so they stay coherent. Do not edit code in this step.
-   Record every requirement item in proposal.md under a section `## Scope changes from review`
-   (create it if missing, append otherwise), one bullet per item, in this form:
-   `- Fn (@reviewer, <link>): <what changed>. Overrides original task: <yes: quote the task line it
-   contradicts, e.g. an out-of-scope entry | no>.`
+   Record every requirement item in proposal.md in a section with exactly this level-2 heading,
+   placed at the END of proposal.md (create it if missing, append bullets otherwise):
+
+       ## Scope changes from review
+
+       - F1 (@reviewer, https://github.com/...): footer also shows the short commit SHA. Overrides
+         original task: yes ("Showing a git SHA or build date" was out of scope).
+
+   One bullet per requirement item, each starting with `- F<n> `. Do not record scope changes
+   anywhere else (not as bullets under "What Changes"). If an earlier round recorded one elsewhere,
+   move it into this section, renumbered as given in that round if known.
    Also remove or adjust any statement in the change that the item contradicts (e.g. an out-of-scope
-   line in proposal.md). This section is how Verify tells approved scope changes from scope creep.
+   line in proposal.md). CI checks this section mechanically; Verify uses it to tell approved scope
+   changes from scope creep.
 4. Add every implementation item as an unticked task in tasks.md, under a final section
    `## N. Review follow-ups` (N = the next section number), one task per item, citing its Fn.
 5. Run `openspec validate {{CHANGE_ID}} --strict` and fix the artifacts until it passes.
