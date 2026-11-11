@@ -115,7 +115,9 @@ function App() {
 
       <div className="ticks"></div>
       <section id="spacer"></section>
-      <footer>Version {__APP_VERSION__}</footer>
+      <footer>
+        Version {__APP_VERSION__} ({__APP_COMMIT_SHA__})
+      </footer>
     </>
   )
 }

@@ -8,7 +8,8 @@ Users reporting problems cannot tell which app version they run. Showing the ver
 
 - Add a `<footer>` at the bottom of the main page showing "Version X.Y.Z".
 - X.Y.Z is the `version` field of `package.json`, injected at build time (Vite `define` constant), not hard-coded in a component.
-- Out of scope: styling beyond readability, git SHA, build date.
+- The footer also shows the git commit SHA of the build (short form), injected at build time (reviewer feedback F1/F2). Falls back to "unknown" when git info is unavailable.
+- Out of scope: styling beyond readability, build date.
 
 ## Capabilities
 
@@ -19,5 +20,5 @@ Users reporting problems cannot tell which app version they run. Showing the ver
 
 ## Impact
 
-- `vite.config.ts` (define a build-time constant), `src/App.tsx` (footer), a type declaration for the constant under `src/`, minimal CSS in `src/App.css`.
+- `vite.config.ts` (define build-time constants for version and commit SHA), `src/App.tsx` (footer), a type declaration for the constant under `src/`, minimal CSS in `src/App.css`.
 - No new dependencies.

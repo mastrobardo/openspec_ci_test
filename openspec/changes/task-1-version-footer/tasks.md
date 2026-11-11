@@ -18,3 +18,9 @@
 ## 4. Review follow-ups
 
 - [x] 4.1 (F1) In `src/App.css`, replace the hard-coded footer `padding: 16px` with a CSS variable (`--footer-padding`); verify the footer padding is unchanged.
+
+## 5. Commit SHA in footer
+
+- [x] 5.1 In `vite.config.ts`, resolve the short commit SHA (`git rev-parse --short HEAD`, fallback `GITHUB_SHA` first 7 chars, then `"unknown"`) and expose it via `define` as `__APP_COMMIT_SHA__`; verify `pnpm build` succeeds (spec: footer shows the commit SHA).
+- [x] 5.2 Declare `__APP_COMMIT_SHA__: string` in `src/app-version.d.ts`; verify `pnpm build` reports no type errors.
+- [x] 5.3 Update the footer in `src/App.tsx` to render `Version {__APP_VERSION__} ({__APP_COMMIT_SHA__})`; verify the built output contains the SHA.

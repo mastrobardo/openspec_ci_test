@@ -18,7 +18,18 @@ The footer SHALL display the text "Version " followed by the `version` field of 
 
 #### Scenario: Current version displayed
 - **WHEN** `package.json` has version `0.0.0` and the main page is rendered
-- **THEN** the footer text is "Version 0.0.0"
+- **THEN** the footer text starts with "Version 0.0.0"
+
+### Requirement: Footer shows the commit SHA
+The footer SHALL also display the short git commit SHA of the build, resolved at build time, or "unknown" when it cannot be determined.
+
+#### Scenario: SHA displayed
+- **WHEN** the app is built from a git checkout and the main page is rendered
+- **THEN** the footer text includes the short commit SHA of HEAD, e.g. "Version 0.0.0 (abc1234)"
+
+#### Scenario: SHA unavailable
+- **WHEN** the app is built where git information is unavailable
+- **THEN** the footer shows "unknown" as the SHA and the build still succeeds
 
 ### Requirement: Version is resolved at build time
 The displayed version MUST be read from `package.json` at build time, so that changing the version and rebuilding changes the footer text with no other code change.
