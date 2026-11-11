@@ -9,7 +9,6 @@ Users reporting problems cannot tell which app version they run. Showing the ver
 - Add a `<footer>` at the bottom of the main page showing "Version X.Y.Z".
 - X.Y.Z is the `version` field of `package.json`, injected at build time (Vite `define` constant), not hard-coded in a component.
 - The footer also shows the git commit SHA of the build (short form), injected at build time. Falls back to "unknown" when git info is unavailable.
-- **Scope change (reviewer feedback, review round 2 F1):** `tasks/task-1.txt` originally listed "Showing a git SHA or build date" as out of scope. The reviewer asked for the SHA to be recorded as a scope change, so the git SHA is now in scope; the original task text is not edited.
 - Out of scope: styling beyond readability, build date.
 
 ## Capabilities
@@ -23,3 +22,7 @@ Users reporting problems cannot tell which app version they run. Showing the ver
 
 - `vite.config.ts` (define build-time constants for version and commit SHA), `src/App.tsx` (footer), a type declaration for the constant under `src/`, minimal CSS in `src/App.css`.
 - No new dependencies.
+
+## Scope changes from review
+
+- F1 (@mastrobardo, https://github.com/mastrobardo/openspec_ci_test/pull/1#pullrequestreview-5865908905): the git SHA scope note now lives in this section: the footer also shows the short git commit SHA of the build, so the SHA is in scope (build date stays out of scope); `tasks/task-1.txt` is not edited. Overrides original task: yes: "Showing a git SHA or build date." (Out of scope).
