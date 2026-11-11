@@ -1,3 +1,12 @@
+footer {
+  --footer-padding: 16px;
+
+  padding: var(--footer-padding);
+  text-align: center;
+  font-size: 14px;
+  color: var(--text);
+}
+
 .counter {
   font-size: 16px;
   padding: 5px 10px;

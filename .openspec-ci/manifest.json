@@ -1,0 +1,19 @@
+{
+  "task": "task-1",
+  "change": "task-1-version-footer",
+  "stage": "archived",
+  "status": "archived",
+  "plan_run_id": "43091589972",
+  "base_sha": "7eb045408b37e87c905198dea4f75e1350798ea1",
+  "created_at": "2026-11-11T19:57:53Z",
+  "updated_at": "2026-11-11T22:59:56Z",
+  "model": "sonnet",
+  "apply_run_id": "43114321202",
+  "apply_run_attempt": "1",
+  "applied_at": "2026-11-11T22:44:56Z",
+  "apply_count": "6",
+  "archived_as": "2026-11-11-task-1-version-footer",
+  "archive_run_id": "43116149538",
+  "archived_at": "2026-11-11T22:59:47Z",
+  "verified_sha": "ae3782cbf17fad8ffb457ce90fee939adf631c84"
+}

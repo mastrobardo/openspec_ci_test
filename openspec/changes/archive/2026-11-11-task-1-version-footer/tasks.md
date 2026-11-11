@@ -1,0 +1,26 @@
+# Tasks
+
+## 1. Build-time version injection
+
+- [x] 1.1 In `vite.config.ts`, read `version` from `package.json` and expose it via `define` as `__APP_VERSION__`; verify `pnpm build` succeeds (spec: version resolved at build time).
+- [x] 1.2 Declare `__APP_VERSION__: string` in a `src/*.d.ts` file; verify `tsc -b` (via `pnpm build`) reports no type errors.
+
+## 2. Footer
+
+- [x] 2.1 Append `<footer>v{__APP_VERSION__}</footer>` as the last element of `App` in `src/App.tsx`; verify with `pnpm dev`/`pnpm preview` that a footer shows "v0.0.0" at the bottom of the page (specs: footer rendered, shows package version).
+- [x] 2.2 Add minimal readable styling for the footer in `src/App.css`; verify the text is legible in the rendered page.
+
+## 3. Verification
+
+- [x] 3.1 Temporarily set `package.json` version to `1.2.3`, run `pnpm build`, confirm "v1.2.3" appears in the built output (e.g. grep `dist/assets`), then revert to `0.0.0` (spec: version bump and rebuild).
+- [x] 3.2 Run `pnpm build` and `pnpm lint`; verify both exit 0 (spec: build and lint succeed).
+
+## 4. Review follow-ups
+
+- [x] 4.1 (F1) In `src/App.css`, replace the hard-coded footer `padding: 16px` with a CSS variable (`--footer-padding`); verify the footer padding is unchanged.
+
+## 5. Commit SHA in footer
+
+- [x] 5.1 In `vite.config.ts`, resolve the short commit SHA (`git rev-parse --short HEAD`, fallback `GITHUB_SHA` first 7 chars, then `"unknown"`) and expose it via `define` as `__APP_COMMIT_SHA__`; verify `pnpm build` succeeds (spec: footer shows the commit SHA).
+- [x] 5.2 Declare `__APP_COMMIT_SHA__: string` in `src/app-version.d.ts`; verify `pnpm build` reports no type errors.
+- [x] 5.3 Update the footer in `src/App.tsx` to render `v{__APP_VERSION__} ({__APP_COMMIT_SHA__})`; verify the built output contains the SHA.
