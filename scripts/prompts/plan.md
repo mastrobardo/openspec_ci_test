@@ -15,6 +15,16 @@ Rules:
   configuration, or anything else.
 - Each acceptance criterion from the task must map to at least one requirement scenario and one
   task in tasks.md.
+- A delta spec for a capability that does not exist yet in `openspec/specs/` MUST start with a
+  `## Purpose` section (one sentence on what the capability is for), before `## ADDED Requirements`:
+
+      ## Purpose
+      Lets users reset the counter to zero without reloading the page.
+
+      ## ADDED Requirements
+      ...
+
+  `openspec archive` copies it into the new main spec; without it the archive fails. CI checks this.
 - Every task in tasks.md is done later by an unattended agent in CI, with no browser, no dev or
   preview server, no background process, and nobody to look at the result. Write only tasks it can
   complete and check itself: edit files, run `pnpm build`, `pnpm lint` or tests, and search the

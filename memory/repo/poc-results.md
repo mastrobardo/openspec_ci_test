@@ -78,6 +78,17 @@ because the PR was opened after every workflow existed). 4 agent runs on `claude
 $0.50), Apply (failed on an un-runnable task), `/reapply`, Verify. Total **111 turns, $1.65 notional**.
 Opus costs about 2× Sonnet per stage on this repo.
 
+## 3c. Run log, PR #4 (task-3) and PR #3 (task-4) in parallel (model `sonnet`, UTC, 2026-11-12)
+| Time | Run | Stage / event | Result | Agent stats |
+|---|---|---|---|---|
+| 08:15 | 43181472012 / 43181476952 | Plan dispatch ×2 (first run of the 020 rule) | ✅ draft PRs #4 / #3; every task CI-doable; task-4 spotted that PR #2's `main-page-heading` spec pinned the `<title>` and added a MODIFIED delta handing it to `browser-tab-title` | 15 turns $0.12 / 18 turns $0.12 (1 harmless denial: `mkdir -p`) |
+| 08:26 | 43182884838 / 43182891027 → 43182896535 / 43182901989 | Ready for review ×2 → **trampoline** (first run, 024) → dispatched Apply ×2 | ✅ Events → Apply ~5 s later; both Applies ran **in parallel** (~1 min each); only `src/App.tsx` / `index.html` changed | 14 turns $0.11 / 14 turns $0.10 (1 denial: `sed -i` to tick tasks) |
+| 08:34 | 43184039573 / 43184062098 → 43184049952 / 43184073218 | Approve ×2 → trampoline → Verify with `approved_sha` | ✅ PASS ×2 (~50 s each); 0 denials: the 022 full-history checkout let Verify diff against main | 11 turns $0.10 / 11 turns $0.10 |
+| 08:40 | same runs, `archive` job | gate approved ×2 | ❌ both: `validate --all --strict` rejected the new main spec's placeholder `## Purpose` → 025 | – |
+
+Sonnet plans for new capabilities omitted the delta `## Purpose` (the Opus plans for PR #1/#2 had
+included it by chance). Nothing catches this before the archive: the change validates, Verify passes.
+
 ## 4. Decisions (full table in docs/PLAN.md)
 D1 POC in this repo · D2 tasks as text files (stand-in for Jira) · D3 subscription token
 (`claude setup-token`) · D4 raw `claude -p`, not claude-code-action · D5 Actions only, no `act` · D6 layer
@@ -103,6 +114,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
 | Gate missing after a re-approve | Verify PASS but no `archive` job | the review event ran an older Verify from the stale merge ref | dispatch from main; fix: trampoline (PR events only start the main-branch workflow) |
 | Plan wrote an un-runnable task (PR #2) | Apply fail at `tasks-complete`, 1 task unticked, nothing pushed | task 2.2 "open the page with `pnpm preview` and check visually"; the CI sandbox denies servers | plan prompt: only tasks an unattended agent can do and check; visual checks → reviewer note (020); PR #2 unblocked via `/reapply` |
 | Verify could not diff against the base | 1 denial (`git fetch --depth=2`), task 1.2 checked from the source only | `actions/checkout` defaults to depth 1; network git is not allowed | `fetch-depth: 0` + prompt hint `git diff origin/main...HEAD` (022) |
+| Archive fails at the gate (PR #3, #4) | `✗ spec/<new-cap>`: Purpose is a placeholder | a new capability's delta had no `## Purpose`, so `openspec archive` wrote a placeholder that `validate --all --strict` rejects; Opus happened to write one, Sonnet did not | `new-specs-have-purpose` check at Plan, Apply and Verify + literal example in `plan.md`/`reapply.md`; archive uses `validate-all` (records why) (025) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -127,6 +139,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   structure.
 - PR-event workflows depend on the merge ref: keep a dispatch fallback or trigger from main.
 - Before blaming code, re-run a known-good commit and check githubstatus.com; let queued runs finish.
+- A structural rule left to the model holds only as long as the model happens to follow it: PR #1/#2 (Opus) wrote a Purpose, PR #3/#4 (Sonnet) did not. Check it deterministically, at the earliest stage.
 - A failed run must say why where people look (job summary, PR comment), not only in the step log.
 - Make every stage produce an audit trail (manifest, artifacts, PR comments with run links).
 - Cost is small per stage (~$0.10–0.20 notional on Sonnet); review rounds dominate.
@@ -143,6 +156,6 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
 - Nothing in the PR #1 or PR #2 lifecycles. PR #2 reached the archive gate from a real Approve (no
   dispatch). The trampoline fix for stale merge refs (024; it hit PR #1 three times, PR #2 never) is built but not yet run on GitHub.
   (`/reapply` and the 015 scope check are proven: run 43114321202.)
-- Not yet run on GitHub: the 024 trampoline, the 020 plan rule (PR #2 was planned before it), the 021 failure summary and
-  failure comment, the 022 full-history Verify checkout.
-- Concurrency of several PRs in parallel, tasks 3 and 4, the Fable model in CI (Opus: PR #2).
+- Proven on PR #3/#4: the 024 trampoline (Ready, Approve), the 020 plan rule, the 021 summary (passing runs),
+  the 022 full-history Verify checkout, parallel PRs. Not yet on GitHub: the 021 failure comment, 025.
+- The Fable model in CI (Opus: PR #2; Sonnet: PR #1, #3, #4).

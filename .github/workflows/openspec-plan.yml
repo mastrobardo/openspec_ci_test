@@ -69,6 +69,7 @@ jobs:
         run: |
           change="$(scripts/openspec-ops.sh change-id "$TASK")"
           scripts/openspec-ops.sh validate "$change"
+          scripts/openspec-ops.sh new-specs-have-purpose "$change"
           echo "id=$change" >> "$GITHUB_OUTPUT"
 
       - name: Write manifest

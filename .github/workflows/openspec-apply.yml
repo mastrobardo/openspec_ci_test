@@ -214,6 +214,7 @@ jobs:
         run: |
           "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
           "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
+          "$CI_SCRIPTS"/openspec-ops.sh new-specs-have-purpose "$CHANGE"
           # Output also goes to build.log so the run summary can quote a failure.
           pnpm build 2>&1 | tee .openspec-ci/runs/build.log
           pnpm lint 2>&1 | tee -a .openspec-ci/runs/build.log

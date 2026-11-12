@@ -20,6 +20,13 @@
 #                              after a reapply: if the impact list (guard-diff reapply stdout)
 #                              touches proposal.md or specs/, proposal.md must have a
 #                              '## Scope changes from review' section with '- F<n>' entries (D12)
+#   new-specs-have-purpose <change-id>
+#                              every delta spec for a capability that is not yet in openspec/specs/
+#                              must have a '## Purpose' with real text: `openspec archive` copies it
+#                              into the new main spec, else writes a placeholder that
+#                              `validate --all --strict` rejects (only at the archive gate)
+#   validate-all               openspec validate --all --strict (main specs + changes); on failure
+#                              records the failing items and their messages
 #   manifest <key=value>...    create/merge .openspec-ci/manifest.json (sets created_at once,
 #                              updated_at always)
 # Env
@@ -153,6 +160,41 @@ cmd_scope_documented() {
   echo "openspec-ops: scope changes documented ($entries entr$( [[ $entries -eq 1 ]] && echo y || echo ies))" >&2
 }
 
+cmd_new_specs_have_purpose() {
+  local change_id="${1:-}"; valid_change_id "$change_id"
+  local dir="openspec/changes/$change_id/specs" f cap text missing=() checked=0
+  [[ -d "$dir" ]] || { echo "openspec-ops: no delta specs in $change_id" >&2; return 0; }
+  for f in "$dir"/*/spec.md; do
+    [[ -f "$f" ]] || continue
+    cap="$(basename "$(dirname "$f")")"
+    [[ -d "openspec/specs/$cap" ]] && continue   # existing capability: its Purpose is already set
+    checked=$((checked + 1))
+    text="$(awk '/^## Purpose[[:space:]]*$/ {f=1; next} /^#/ {f=0} f && NF {print}' "$f")"
+    if [[ -z "$text" || "$text" =~ ^[[:space:]]*(TBD|TODO) ]]; then missing+=("$f"); fi
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    local msg="new capability delta spec(s) without a '## Purpose' (archive would write a placeholder that fails validate --strict)"
+    record "openspec-ops new-specs-have-purpose: FAIL: $msg"
+    detail "$(printf '%s\n' "${missing[@]}")"
+    echo "openspec-ops: FAIL: $msg" >&2
+    exit 2
+  fi
+  echo "openspec-ops: new capabilities have a Purpose ($checked checked)" >&2
+}
+
+cmd_validate_all() {
+  need openspec
+  local out
+  if out="$(openspec validate --all --strict --no-interactive 2>&1)"; then
+    echo "$out" >&2
+    return 0
+  fi
+  echo "$out" >&2
+  record "openspec-ops validate-all: FAIL: openspec validate --all --strict"
+  detail "$(grep -E '✗|⚠|ERROR|WARNING|Details:' <<<"$out" || echo "$out" | tail -n 20)"
+  exit 2
+}
+
 cmd_manifest() {
   [[ $# -gt 0 ]] || die "manifest needs at least one key=value"
   need jq
@@ -184,6 +226,8 @@ case "$command" in
   guard-plan-diff) cmd_guard_plan_diff "$@" ;;
   guard-diff)      cmd_guard_diff "$@" ;;
   scope-documented) cmd_scope_documented "$@" ;;
+  new-specs-have-purpose) cmd_new_specs_have_purpose "$@" ;;
+  validate-all)    cmd_validate_all "$@" ;;
   manifest)        cmd_manifest "$@" ;;
-  *) die "usage: $0 <change-id|validate|tasks-complete|guard-plan-diff|guard-diff|scope-documented|manifest> [args]" ;;
+  *) die "usage: $0 <change-id|validate|tasks-complete|guard-plan-diff|guard-diff|scope-documented|new-specs-have-purpose|validate-all|manifest> [args]" ;;
 esac

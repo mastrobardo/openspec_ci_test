@@ -42,6 +42,8 @@ changes or secrets, push, merge, or do anything outside this change.
 Rules:
 - Only change application code and files under `openspec/changes/{{CHANGE_ID}}/`.
 - Spec changes are allowed only for items you classified as requirement, and only via step 3.
+- If step 3 adds a delta spec for a capability that does not exist yet in `openspec/specs/`, start
+  it with `## Purpose` and one sentence on what the capability is for (CI checks this).
 - If an item would require a change you cannot make within these rules, classify it as no-op and say so.
 
 Your final message is a re-apply report in Markdown with sections `## Summary`, `## Spec impact`

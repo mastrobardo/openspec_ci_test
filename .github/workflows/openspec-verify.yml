@@ -130,7 +130,7 @@ jobs:
           pnpm install --frozen-lockfile
           npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
 
-      - name: Deterministic checks (change, validate, tasks)
+      - name: Deterministic checks (change, validate, tasks, new-capability Purpose)
         id: precheck
         env:
           TASK: ${{ steps.m.outputs.task }}
@@ -140,6 +140,7 @@ jobs:
           [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
           "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
+          "$CI_SCRIPTS"/openspec-ops.sh new-specs-have-purpose "$CHANGE"   # else archive fails at the gate
 
       - name: Run agent (verify)
         id: agent
@@ -300,7 +301,7 @@ jobs:
           archived="$(find openspec/changes/archive -mindepth 1 -maxdepth 1 -type d -name "*-$CHANGE" \
                       | sed 's|.*/||' | sort | tail -1)"
           [[ -n "$archived" && ! -d "openspec/changes/$CHANGE" ]] || { echo "::error::archive did not move the change" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
-          openspec validate --all --strict --no-interactive
+          "$CI_SCRIPTS"/openspec-ops.sh validate-all
           specs="$(git status --porcelain --untracked-files=all -- openspec/specs | sed 's/^...//' \
                    | awk -F/ '{print $3}' | sort -u | paste -sd, -)"
           echo "archived=$archived" >> "$GITHUB_OUTPUT"
