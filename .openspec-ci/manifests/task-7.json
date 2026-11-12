@@ -1,15 +1,15 @@
 {
   "task": "task-7",
   "change": "task-7-meta-description",
-  "stage": "apply",
-  "status": "applied",
+  "stage": "archived",
+  "status": "archived",
   "model": "sonnet",
   "plan_run_id": "43192919931",
   "plan_run_attempt": "1",
   "plan_model": "claude-sonnet-5-5",
   "base_sha": "2e940d9c7564272848b8df3e234a831891ac1666",
   "created_at": "2026-11-12T09:36:54Z",
-  "updated_at": "2026-11-12T12:09:00Z",
+  "updated_at": "2026-11-12T14:31:50Z",
   "synced_at": "2026-11-12T12:09:00Z",
   "synced_main_sha": "83feb0999f6c5b76089d6e449dbac57805756804",
   "sync_result": "clean",
@@ -18,5 +18,9 @@
   "apply_run_id": "43211454932",
   "apply_run_attempt": "1",
   "applied_at": "2026-11-12T11:42:41Z",
-  "apply_count": "1"
+  "apply_count": "1",
+  "archived_as": "2026-11-12-task-7-meta-description",
+  "archive_run_id": "43216375695",
+  "archived_at": "2026-11-12T14:31:44Z",
+  "verified_sha": "0a191196f29616ab5abdd40fe53478bcced07efc"
 }
