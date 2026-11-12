@@ -87,3 +87,8 @@
   021 failure comment; task-12: README-only change.
 - Pushing 027 to main triggers Sync on open PRs #5–#7 (clean merge: tasks/ and docs only).
 
+## Sync clean path proven (recorded in 028)
+- Sync 43197508948 (push of 027): find → 3 matrix jobs, clean merges, checks, merge commits + 🔄
+  comments on PRs #5–#7, 20–35 s each, no agent. Recorded as poc-results §3d with slide points
+  (user: the sync step is important for the presentation).
+

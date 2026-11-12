@@ -90,6 +90,28 @@ Opus costs about 2× Sonnet per stage on this repo.
 Sonnet plans for new capabilities omitted the delta `## Purpose` (the Opus plans for PR #1/#2 had
 included it by chance). Nothing catches this before the archive: the change validates, Verify passes.
 
+## 3d. Sync stage (026, D16): PRs #5 (task-7), #6 (task-5), #7 (task-6), model `sonnet`, UTC, 2026-11-12
+Why it exists: parallel PRs drift from `main` as soon as one of them merges. PR #3 conflicted after
+PR #4 merged and needed a manual merge. GitHub's merge queue only re-tests; it never resolves.
+
+| Time | Run | Stage / event | Result | Agent stats |
+|---|---|---|---|---|
+| 09:58 | 43192908031 | Sync on the push of 026 (first run) | ✅ no-op: no open OpenSpec PR behind main | – |
+| 09:58 | 43192908545 / 43192914312 / 43192919931 | Plan dispatch ×3 (task-5, -6, -7) | ✅ draft PRs #6 / #7 / #5; new capabilities carry a `## Purpose` (025 rule); task-5 MODIFIED every spec that pinned "Count is" | 16 turns $0.13 / 14 turns $0.11 / 12 turns $0.09, 0 denials |
+| 10:07 | 43197508948 | **Sync on the push of 027** (main moved: tasks 8–12) | ✅ `find` (4 s) → 3 parallel matrix jobs, each `git merge main` **clean, no agent**: checks (validate, Purpose, spec preflight, build, lint) → merge commit `openspec(task-N): merge main 1f65841 (clean)` + 🔄 comment; 20–35 s per PR | none ($0) |
+
+Pending (user drives by hand): Ready ×3 → merge task-5 → Sync should send PR #7 (task-6, same line
+in `src/App.tsx`) through the **resolve** agent and keep PR #5 (task-7) on the clean path.
+
+Slide points:
+- Sync is event-driven from `main` (push), so it never runs a stale workflow; its own pushes use
+  `GITHUB_TOKEN` and cannot trigger it again (no loop).
+- Cost scales with conflicts, not with PRs: a clean sync is deterministic and free; the agent
+  runs only for a conflicted PR, and its edits are fenced by `guard-resolve`.
+- Correctness beyond text: `spec-preflight` archives the change into a scratch copy of the
+  updated main specs, so a delta that no longer applies fails here, not at the archive gate.
+- The human gate is preserved: the sync push makes approvals stale; re-approve → Verify.
+
 ## 4. Decisions (full table in docs/PLAN.md)
 D1 POC in this repo · D2 tasks as text files (stand-in for Jira) · D3 subscription token
 (`claude setup-token`) · D4 raw `claude -p`, not claude-code-action · D5 Actions only, no `act` · D6 layer
@@ -137,6 +159,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   check; archive behind a required-reviewer environment.
 
 ## 7. Lessons (for the closing slide)
+- Parallel work needs a sync stage: merge main into every open PR after each merge, deterministic when clean, agent only on conflict, guarded, and re-gated by a human.
 - Gate agents with human PR actions plus deterministic checks; use the LLM for judgment, scripts for
   structure.
 - PR-event workflows depend on the merge ref: keep a dispatch fallback or trigger from main.
@@ -159,6 +182,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   dispatch). The trampoline fix for stale merge refs (024; it hit PR #1 three times, PR #2 never) is built but not yet run on GitHub.
   (`/reapply` and the 015 scope check are proven: run 43114321202.)
 - Proven on PR #3/#4: the 024 trampoline (Ready, Approve), the 020 plan rule, the 021 summary (passing runs),
-  the 022 full-history Verify checkout, parallel PRs. Not yet on GitHub: the 021 failure comment, the 025 Purpose check, the 026 Sync/resolve stage
-  (tasks 5–7 are designed for it: 5 and 6 edit the same line, 7 is independent).
+  the 022 full-history Verify checkout, parallel PRs. Proven on PRs #5–#7: the 025 Purpose rule at Plan, the 026 Sync clean path (3 PRs in parallel,
+  no agent). Not yet on GitHub: the 021 failure comment (task-11 should trigger it), the 026 resolve
+  path (task-5 merge → PR #7), the spec-preflight failing case.
 - The Fable model in CI (Opus: PR #2; Sonnet: PR #1, #3, #4).
