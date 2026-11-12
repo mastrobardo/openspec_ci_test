@@ -100,6 +100,9 @@ PR #4 merged and needed a manual merge. GitHub's merge queue only re-tests; it n
 | 09:58 | 43192908545 / 43192914312 / 43192919931 | Plan dispatch ×3 (task-5, -6, -7) | ✅ draft PRs #6 / #7 / #5; new capabilities carry a `## Purpose` (025 rule); task-5 MODIFIED every spec that pinned "Count is" | 16 turns $0.13 / 14 turns $0.11 / 12 turns $0.09, 0 denials |
 | 10:07 | 43197508948 | **Sync on the push of 027** (main moved: tasks 8–12) | ✅ `find` (4 s) → 3 parallel matrix jobs, each `git merge main` **clean, no agent**: checks (validate, Purpose, spec preflight, build, lint) → merge commit `openspec(task-N): merge main 1f65841 (clean)` + 🔄 comment; 20–35 s per PR | none ($0) |
 
+| 11:41 | 43211365893 → 43211377895 | Approve on PR #6 **while still a draft** (GitHub allows it) → trampoline → Verify | ❌ Verify refused in its first step (`PR #6 is still a draft`), $0; first real failure through the 021 summary (`Result: ❌ failed before checkout`), but nothing on the PR → 029 | – |
+| 11:42 | 43211430833 / 43211444437 → Applies | Ready for review ×2 | dispatched Apply ×2 (running) | – |
+
 Pending (user drives by hand): Ready ×3 → merge task-5 → Sync should send PR #7 (task-6, same line
 in `src/App.tsx`) through the **resolve** agent and keep PR #5 (task-7) on the clean path.
 
@@ -139,6 +142,8 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
 | Verify could not diff against the base | 1 denial (`git fetch --depth=2`), task 1.2 checked from the source only | `actions/checkout` defaults to depth 1; network git is not allowed | `fetch-depth: 0` + prompt hint `git diff origin/main...HEAD` (022) |
 | Archive fails at the gate (PR #3, #4) | `✗ spec/<new-cap>`: Purpose is a placeholder | a new capability's delta had no `## Purpose`, so `openspec archive` wrote a placeholder that `validate --all --strict` rejects; Opus happened to write one, Sonnet did not | `new-specs-have-purpose` check at Plan, Apply and Verify + literal example in `plan.md`/`reapply.md`; archive uses `validate-all` (records why) (025) |
 | Second parallel PR conflicts (PR #3 after #4) | GitHub "conflicts" on `.openspec-ci/manifest.json` only | every branch wrote the same manifest path; each squash merge put one task's manifest on main | per-task `.openspec-ci/manifests/<task>.json`; PR #3 unblocked by a manual merge (keep ours); Sync stage for real conflicts (026) |
+| Approval on a draft PR (PR #6) | a red Verify run, no message on the PR | GitHub accepts reviews on drafts; the trampoline dispatched blindly | Events ignores reviews on drafts and comments "mark it Ready for review first" (029) |
+| Runs hard to tell apart | every dispatched run was titled "OpenSpec Apply"/"OpenSpec Verify" | dispatches carry only `pr` | `run-name` on every workflow; the trampoline passes the PR title as `label`; Sync jobs are named `sync PR #N · <title>` (029) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
