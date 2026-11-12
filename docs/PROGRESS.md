@@ -26,16 +26,19 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 11 | E2E run: Plan → draft PR → Ready → Apply → re-apply → Approve → Verify → archive → squash merge | **done**: PR #1 merged as `2362212` (2026-11-11 23:01Z) | 019 (record) |
 | 11b | Fallback repo `arcibardo/openspec_ci` (Plan passed there → its PR #1); back on the old repo after the outage | done | 011 |
 | 11c | Apply runs trusted scripts from the workflow commit (`$CI_SCRIPTS`), prompts next to the script | done; Apply + 2 re-applies passed on GitHub (PR #1, spec impact shown for the SHA requirement) | 012 |
+| 12 | PR #2 (task-2, opus) Apply failed: Plan wrote a browser-check task CI cannot run → `plan.md` rule (tasks must be doable unattended; visual checks are reviewer notes). PR #2 unblocked by the user with `/reapply` | done (prompt); `/reapply` on PR #2 pending | 020 |
 
 ## Next action
 
-State (2026-11-12): **the full lifecycle is proven on GitHub.** PR #1 went Plan → Apply → re-apply ×5
+State (2026-11-12): PR #2 in progress (see item 0). **The full lifecycle is proven on GitHub.** PR #1 went Plan → Apply → re-apply ×5
 (incl. `/reapply`) → Verify PASS → gated archive → squash merge `2362212`. `main` holds
 `openspec/specs/app-version-footer/spec.md` and `openspec/changes/archive/2026-11-11-task-1-version-footer/`.
 Full record for the presentation: `memory/repo/poc-results.md` (update it in every commit).
 
 The user resumes with **step 9**:
-1. **Step 9: README** (commit `020`; show the outline first): setup (secret, Actions settings,
+0. **PR #2** (task-2, opus): the user posted `/reapply` to reword task 2.2 (run 43172704001 failed, see
+   `poc-results.md` §3b). Record its result, then Approve → Verify → gate → merge (clean-run data).
+1. **Step 9: README** (commit `021`; show the outline first): setup (secret, Actions settings,
    environment `openspec-archive`, squash-only), a lifecycle diagram, every trigger + its dispatch
    fallback, `/reapply [text]` (must start the comment), model dropdown, the D12 scope rule, the
    archive gate ("Review deployments"), troubleshooting → `memory/repo/ci-gotchas.md`. Replace the

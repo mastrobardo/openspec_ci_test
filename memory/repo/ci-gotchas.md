@@ -106,3 +106,10 @@ Learned testing Apply on PR #1 (2026-11-11):
 - zsh: quote `gh api` URLs that contain `?` (`'repos/o/r/actions/runs?per_page=3'`), otherwise
   zsh treats them as a glob and fails with "no matches found" (a background poller died silently).
 - `gh api --help | grep` output is swallowed by the local `rtk` hook. Write help to a file first.
+- **Plan can write tasks that Apply can never do** (PR #2, run 43172704001, 2026-11-12): task 2.2
+  said "open the page with `pnpm preview` / `pnpm dev` and check visually". Apply's sandbox denied
+  the background server and a build into `/tmp`; the agent did the `dist/` grep instead, left 2.2
+  unticked (as `apply.md` says), and `tasks-complete` failed with exit 2. Nothing was pushed.
+  Fix (020): `plan.md` rule: only tasks an unattended agent can finish and check (edit, build, lint,
+  tests, grep source/`dist/`); visual checks go to "Assumptions and open questions" as reviewer
+  checks. Unblock an existing PR with `/reapply` asking to reword the task.

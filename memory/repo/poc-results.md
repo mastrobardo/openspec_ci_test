@@ -63,6 +63,11 @@ and debugging the pipeline itself and a 45-min GitHub outage. Local plan runs be
 CI: 21–41 turns on Fable ($0.46–1.92). Every CI run used `claude-sonnet-5-5` (dropdown default
 `sonnet`) with 0 permission denials.
 
+## 3b. Run log, PR #2 (task-2, model `opus`, UTC, 2026-11-12)
+| Time | Run | Stage / event | Result | Agent stats |
+|---|---|---|---|---|
+| 07:05 | 43172704001 | Apply ("Ready for review") | ❌ `tasks-complete`: task 2.2 (browser check) unticked; 2 permission denials (`pnpm preview` in background, `vite build --outDir /tmp`); guards, build, lint OK | 28 turns, $0.36 |
+
 ## 4. Decisions (full table in docs/PLAN.md)
 D1 POC in this repo · D2 tasks as text files (stand-in for Jira) · D3 subscription token
 (`claude setup-token`) · D4 raw `claude -p`, not claude-code-action · D5 Actions only, no `act` · D6 layer
@@ -86,6 +91,7 @@ merges (PR title + body).
 | Comment posted seconds after the review | not considered | feedback cutoff = run start | it rolls to the next run; `/reapply` command (016) |
 | `/reapply` with a leading space | run skipped | expression `startsWith` without trim | type it at the start (feedback is not lost: it rolls to the next run); optional gate job with a bash regex |
 | Gate missing after a re-approve | Verify PASS but no `archive` job | the review event ran an older Verify from the stale merge ref | dispatch from main; proposed fix: trampoline (PR events only start the main-branch workflow) |
+| Plan wrote an un-runnable task (PR #2) | Apply fail at `tasks-complete`, 1 task unticked, nothing pushed | task 2.2 "open the page with `pnpm preview` and check visually"; the CI sandbox denies servers | plan prompt: only tasks an unattended agent can do and check; visual checks → reviewer note (020); PR #2 unblocked via `/reapply` |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
