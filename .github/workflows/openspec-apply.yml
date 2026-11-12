@@ -13,6 +13,11 @@
 # Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch:
 # the branch may carry older scripts, and branch edits must not run with the Claude secret.
 name: OpenSpec Apply
+run-name: >-
+  ${{ github.event_name == 'issue_comment' &&
+        (startsWith(github.event.comment.body, '/reapply') && 'Re-apply (/reapply)' || 'Comment (ignored)') ||
+      inputs.mode == 'reapply' && 'Re-apply' || inputs.mode == 'apply' && 'Apply' || 'Apply/re-apply (auto)' }}
+  · ${{ github.event.issue.title || inputs.label || format('PR #{0}', inputs.pr) }}
 
 on:
   issue_comment:
@@ -29,6 +34,11 @@ on:
         type: choice
         default: auto
         options: [auto, apply, reapply]
+      label:
+        description: "Display only: the PR title for the run name (set by openspec-events.yml)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write        # push the implementation to the PR branch

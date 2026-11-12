@@ -33,6 +33,7 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 16 | Third run: PR #4 (task-3) + PR #3 (task-4) in parallel, sonnet; trampoline, 020 rule, 022 checkout proven; both archives failed (new capability without delta `## Purpose`) → `new-specs-have-purpose` check (Plan/Apply/Verify), prompt example, archive `validate-all` | done (local tests on the real PR branches); PR #3/#4: Purpose commits + re-approve pending | 025 |
 | 17 | Sync + resolve stage (D16): `openspec-sync.yml` (push to main, `/sync`, dispatch), agent `resolve` + `resolve.md`, `guard-resolve`, `spec-preflight` (also in Verify), per-task manifests, Purpose ≥ 50 chars; PR #3 unblocked by a manual merge; tasks 5–7 for the CI test | done; clean path proven on GitHub (Sync 43197508948: PRs #5–#7 in parallel, no agent); resolve path pending | 026 |
 | 18 | Tasks 8–12 for manual E2E runs (not planned yet): 8 footer format + 9 footer year (same line and same `app-version-footer` requirement: code + spec conflict for `resolve`), 10 Reset disabled at 0 (review/`/reapply` candidate), 11 unit test without a test runner (expected Apply failure → failure comment), 12 README-only change | done (files only; the user runs Plan by hand) | 027 |
+| 19 | Events ignores reviews on draft PRs (comment instead of a dispatch that Verify refuses); `run-name` with stage + task/PR title on every workflow (`label` input passed by the trampoline; Sync matrix `{pr, title}`) | done (actionlint clean, matrix JSON tested); **not yet run on GitHub** | 029 |
 
 ## Next action
 
