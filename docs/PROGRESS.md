@@ -21,7 +21,7 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 8b | `/reapply [text]` PR comment command (`issue_comment`, owner/member/collaborator only, 👀 ack, bare command dropped from feedback) | done; passed on GitHub (43114321202); a leading space skips it (accepted) | 016 |
 | 8d | Settings via API: environment `openspec-archive` (required reviewer), squash-only merges | done | (API, 2026-11-11) |
 | 8e | Gated archive: second Verify job (D13), job-level concurrency, Apply/Verify refuse archived | done; on GitHub run 43116149538 (dispatch) → gate approved → archived | 018 |
-| 9 | README: setup + run instructions | todo | |
+| 9 | README: lifecycle diagram, layout, setup, triggers + fallbacks, rules (D9–D14), failure summary, troubleshooting, local testing | done | 023 |
 | 10 | User: push, add secret, change repo settings | done: pushed, secret set, Actions enabled, create/approve PRs allowed, default perms read (checked 2026-11-11) | |
 | 11 | E2E run: Plan → draft PR → Ready → Apply → re-apply → Approve → Verify → archive → squash merge | **done**: PR #1 merged as `2362212` (2026-11-11 23:01Z) | 019 (record) |
 | 11b | Fallback repo `arcibardo/openspec_ci` (Plan passed there → its PR #1); back on the old repo after the outage | done | 011 |
@@ -37,12 +37,7 @@ State (2026-11-12): PR #1 and PR #2 (task-2, opus, 29 min, merged `930a91b`) are
 `openspec/specs/app-version-footer/spec.md` and `openspec/changes/archive/2026-11-11-task-1-version-footer/`.
 Full record for the presentation: `memory/repo/poc-results.md` (update it in every commit).
 
-The user resumes with **step 9**:
-1. **Step 9: README** (commit `023`; show the outline first): setup (secret, Actions settings,
-   environment `openspec-archive`, squash-only), a lifecycle diagram, every trigger + its dispatch
-   fallback, `/reapply [text]` (must start the comment), model dropdown, the D12 scope rule, the
-   archive gate ("Review deployments"), troubleshooting → `memory/repo/ci-gotchas.md`. Replace the
-   Vite template README content.
+Step 9 (README) is done (023). The user resumes with:
 2. **Trampoline fix** (recommended before more test runs): PR-event workflows (`pull_request`,
    `pull_request_review`) become one job that runs `gh workflow run "OpenSpec Apply|Verify" -f pr=N`
    (`permissions: actions: write`); the real workflows keep only `workflow_dispatch` (+ `issue_comment`

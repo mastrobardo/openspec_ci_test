@@ -37,3 +37,11 @@
 - Records: poc-results §3b (rows, PR #2 final), §5 problem row, §9; PROGRESS row 14 and next action
   (README → 023); ci-gotchas.
 
+## 023: README (step 9)
+- Replaced the Vite template README: summary, lifecycle diagram, layout, setup (token one-liner,
+  Actions settings, `openspec-archive` environment, squash-only), triggers + dispatch fallbacks,
+  rules (D9–D13, CI-doable tasks), failure summary (021), troubleshooting, local testing.
+- Facts checked against the code: `/reapply` bare = trigger only (pr-feedback drops it; fails with
+  no feedback since `applied_at`); archive fallback = dispatch Verify.
+- Skill: `documentation-and-adrs` (README structure: what/why first, setup, usage, troubleshooting).
+
