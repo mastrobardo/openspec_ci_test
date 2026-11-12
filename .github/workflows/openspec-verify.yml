@@ -9,7 +9,7 @@
 # Job "archive" (D13) runs only after PASS and waits for a reviewer of environment
 # "openspec-archive". It runs `openspec archive` (deterministic, no agent, no Claude secret), pushes
 # the archive commit and asks for a squash merge.
-# Model, task and change come from .openspec-ci/manifest.json (chosen once, at Plan).
+# Model, task and change come from .openspec-ci/manifests/<task>.json (chosen once, at Plan).
 # Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch.
 name: OpenSpec Verify
 
@@ -96,8 +96,10 @@ jobs:
 
       - name: Read manifest
         id: m
+        env:
+          HEAD_REF: ${{ steps.pr.outputs.head }}
         run: |
-          m=.openspec-ci/manifest.json
+          m="$("$CI_SCRIPTS"/openspec-ops.sh manifest-path "${HEAD_REF#openspec/}")"
           [[ -f "$m" ]] || { echo "::error::$m missing" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           task="$(jq -r '.task // empty' "$m")"
           stage="$(jq -r '.stage // empty' "$m")"
@@ -130,7 +132,7 @@ jobs:
           pnpm install --frozen-lockfile
           npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
 
-      - name: Deterministic checks (change, validate, tasks, new-capability Purpose)
+      - name: Deterministic checks (change, validate, tasks, Purpose, spec preflight)
         id: precheck
         env:
           TASK: ${{ steps.m.outputs.task }}
@@ -141,6 +143,7 @@ jobs:
           "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
           "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
           "$CI_SCRIPTS"/openspec-ops.sh new-specs-have-purpose "$CHANGE"   # else archive fails at the gate
+          "$CI_SCRIPTS"/openspec-ops.sh spec-preflight "$CHANGE"           # the delta still applies to main's specs
 
       - name: Run agent (verify)
         id: agent
@@ -281,7 +284,7 @@ jobs:
         run: |
           [[ "$(git rev-parse HEAD)" == "$VERIFIED_SHA" ]] \
             || { echo "::error::branch moved during checkout; re-verify" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
-          stage="$(jq -r '.stage // empty' .openspec-ci/manifest.json)"
+          stage="$(jq -r '.stage // empty' "$("$CI_SCRIPTS"/openspec-ops.sh manifest-path "$TASK")")"
           [[ "$stage" == apply || "$stage" == reapply ]] || { echo "::error::manifest stage '$stage' cannot be archived" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
 
       - uses: actions/setup-node@v7
@@ -319,11 +322,11 @@ jobs:
           SPECS: ${{ steps.archive.outputs.specs }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          "$CI_SCRIPTS"/openspec-ops.sh manifest stage=archived status=archived archived_as="$ARCHIVED" \
+          "$CI_SCRIPTS"/openspec-ops.sh manifest task="$TASK" stage=archived status=archived archived_as="$ARCHIVED" \
             archive_run_id="$GITHUB_RUN_ID" archived_at="$archived_at" verified_sha="$VERIFIED_SHA"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A openspec .openspec-ci/manifest.json
+          git add -A openspec .openspec-ci
           git commit -m "openspec($TASK): archive $CHANGE"
           git push origin "HEAD:$HEAD_REF"
 

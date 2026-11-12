@@ -22,10 +22,11 @@ archive (human approval) → squash merge `2362212` at 23:01Z. **Complete lifecy
 | Re-apply | "Request changes", `/reapply [text]` comment (016), or dispatch | yes (classify → `/opsx:update` → `/opsx:apply`) | pr-feedback (owner/member/collab, since last apply), guard-diff reapply (+ spec impact), scope-documented (015), checks | commit, comment with ⚠️ Spec impact box |
 | Verify | "Approve" (or dispatch) | yes (`/opsx:verify`, read-only) | stale-approval check, change-id, validate, tasks-complete, guard-diff verify (no changes) | ✅/❌/⚠️ verdict comment, job fails unless PASS; never commits |
 | Archive (018) | Second job of the Verify run: after PASS, waits for the `openspec-archive` environment reviewer ("Review deployments → Approve and deploy") | no (`openspec archive -y`, no Claude secret) | verified sha == PR head, validate before, `validate --all --strict` after, guard (only `openspec/`) | archive commit on the PR branch (change → `openspec/changes/archive/<date>-<change>/`, delta → `openspec/specs/<cap>/spec.md`), 📦 comment, then squash merge |
+| Sync (026) | Any push to `main`, `/sync` comment, or dispatch | only on conflict (`resolve`) | merge `main`; guard-resolve (conflicted files + own change only, no markers), validate, Purpose, tasks, spec preflight, build, lint | merge commit on the PR branch + comment (approval now stale → re-approve → Verify) |
 
 Layers (D6): workflows orchestrate only; `scripts/run-agent.sh` (agent adapter, per-stage tool
 allowlist), `scripts/prompts/*.md` (stage prompts), `scripts/openspec-ops.sh` (deterministic checks),
-`scripts/pr-feedback.sh` (review feedback), `scripts/run-summary.sh` (run summary: on failure the failed step, the recorded reason, the agent's own explanation, permission denials, build/lint tail; 021). Audit trail: `.openspec-ci/manifest.json` on the PR branch,
+`scripts/pr-feedback.sh` (review feedback), `scripts/prompts/resolve.md` + `openspec-ops.sh guard-resolve`/`spec-preflight` (sync, 026), `scripts/run-summary.sh` (run summary: on failure the failed step, the recorded reason, the agent's own explanation, permission denials, build/lint tail; 021). Audit trail: `.openspec-ci/manifest.json` on the PR branch,
 plus a per-run artifact (`<stage>.json` with turns, cost, model, denials).
 
 ## 3. Run log, PR #1 (UTC, 2026-11-11)
@@ -115,6 +116,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
 | Plan wrote an un-runnable task (PR #2) | Apply fail at `tasks-complete`, 1 task unticked, nothing pushed | task 2.2 "open the page with `pnpm preview` and check visually"; the CI sandbox denies servers | plan prompt: only tasks an unattended agent can do and check; visual checks → reviewer note (020); PR #2 unblocked via `/reapply` |
 | Verify could not diff against the base | 1 denial (`git fetch --depth=2`), task 1.2 checked from the source only | `actions/checkout` defaults to depth 1; network git is not allowed | `fetch-depth: 0` + prompt hint `git diff origin/main...HEAD` (022) |
 | Archive fails at the gate (PR #3, #4) | `✗ spec/<new-cap>`: Purpose is a placeholder | a new capability's delta had no `## Purpose`, so `openspec archive` wrote a placeholder that `validate --all --strict` rejects; Opus happened to write one, Sonnet did not | `new-specs-have-purpose` check at Plan, Apply and Verify + literal example in `plan.md`/`reapply.md`; archive uses `validate-all` (records why) (025) |
+| Second parallel PR conflicts (PR #3 after #4) | GitHub "conflicts" on `.openspec-ci/manifest.json` only | every branch wrote the same manifest path; each squash merge put one task's manifest on main | per-task `.openspec-ci/manifests/<task>.json`; PR #3 unblocked by a manual merge (keep ours); Sync stage for real conflicts (026) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -157,5 +159,6 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   dispatch). The trampoline fix for stale merge refs (024; it hit PR #1 three times, PR #2 never) is built but not yet run on GitHub.
   (`/reapply` and the 015 scope check are proven: run 43114321202.)
 - Proven on PR #3/#4: the 024 trampoline (Ready, Approve), the 020 plan rule, the 021 summary (passing runs),
-  the 022 full-history Verify checkout, parallel PRs. Not yet on GitHub: the 021 failure comment, 025.
+  the 022 full-history Verify checkout, parallel PRs. Not yet on GitHub: the 021 failure comment, the 025 Purpose check, the 026 Sync/resolve stage
+  (tasks 5–7 are designed for it: 5 and 6 edit the same line, 7 is independent).
 - The Fable model in CI (Opus: PR #2; Sonnet: PR #1, #3, #4).

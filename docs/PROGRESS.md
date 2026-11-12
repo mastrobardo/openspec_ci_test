@@ -31,6 +31,7 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 14 | PR #2 complete: Verify PASS (Approve) → gate → archived → squash merge `930a91b` in 29 min. Verify checkout `fetch-depth: 0` + diff hint in `verify.md` (the agent could not diff vs base) | done; fetch-depth **not yet run on GitHub** | 022 |
 | 15 | Trampoline (D15): `openspec-events.yml` dispatches Apply (`mode=apply/reapply`) / Verify (`approved_sha`) on main; Apply/Verify lose PR-event triggers; Apply `mode` input; Verify stale check via `approved_sha` | done (routing simulated, actionlint clean); **not yet run on GitHub** | 024 |
 | 16 | Third run: PR #4 (task-3) + PR #3 (task-4) in parallel, sonnet; trampoline, 020 rule, 022 checkout proven; both archives failed (new capability without delta `## Purpose`) → `new-specs-have-purpose` check (Plan/Apply/Verify), prompt example, archive `validate-all` | done (local tests on the real PR branches); PR #3/#4: Purpose commits + re-approve pending | 025 |
+| 17 | Sync + resolve stage (D16): `openspec-sync.yml` (push to main, `/sync`, dispatch), agent `resolve` + `resolve.md`, `guard-resolve`, `spec-preflight` (also in Verify), per-task manifests, Purpose ≥ 50 chars; PR #3 unblocked by a manual merge; tasks 5–7 for the CI test | done (local: preflight ±, guard-resolve ±, real conflict merge with a stub agent, actionlint clean); **not yet run on GitHub** | 026 |
 
 ## Next action
 
@@ -39,10 +40,11 @@ State (2026-11-12): PR #1 and PR #2 (task-2, opus, 29 min, merged `930a91b`) are
 `openspec/specs/app-version-footer/spec.md` and `openspec/changes/archive/2026-11-11-task-1-version-footer/`.
 Full record for the presentation: `memory/repo/poc-results.md` (update it in every commit).
 
-Step 9 (README, 023), the trampoline (024) and the third run's fixes (025) are done. The user resumes with:
-1. **Finish PR #3/#4**: Claude pushes a `## Purpose` line to each new delta spec (agreed option a); the
-   user re-approves (→ Verify with the 025 check) and approves the gate, then squash merges both.
-   Record in `poc-results.md` §3c.
+Step 9 (README, 023), the trampoline (024), the third run's fixes (025) and Sync (026) are done; PR #3/#4 merged. The user resumes with:
+1. **CI test of 026 (sonnet)**: Plan task-5, task-6, task-7 → Ready ×3 → Approve + archive + merge
+   **task-5 first**. The push to main starts Sync: task-6 should conflict on `src/App.tsx` → `resolve`
+   agent (expected `Clicks: <strong>{count}</strong>`, delta rebased onto task-5's spec), task-7 should
+   sync clean (no agent). Then re-approve 6 and 7 → Verify → gate → merge. Record in `poc-results.md`.
 2. **Presentation** from `poc-results.md` (outline or deck on request).
 3. Cleanup: delete `probe/007` on the old repo; optionally retire `arcibardo/openspec_ci`.
 

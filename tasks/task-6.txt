@@ -1,0 +1,16 @@
+Title: Show the count in bold
+
+As a user, I want the number on the counter button to stand out, so that I can read it at a glance.
+
+Description:
+On the main page, wrap the number shown on the counter button in a <strong> element, so that only
+the number is bold (for example "Count is <strong>3</strong>").
+
+Acceptance criteria:
+- The number on the counter button is rendered inside a <strong> element.
+- The rest of the button text is unchanged and not bold.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- New CSS rules (the browser's default bold is enough).
+- Changing the Reset button.

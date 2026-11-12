@@ -22,13 +22,23 @@
 #                              '## Scope changes from review' section with '- F<n>' entries (D12)
 #   new-specs-have-purpose <change-id>
 #                              every delta spec for a capability that is not yet in openspec/specs/
-#                              must have a '## Purpose' with real text: `openspec archive` copies it
+#                              must have a '## Purpose' of at least 50 characters: `openspec archive` copies it
 #                              into the new main spec, else writes a placeholder that
 #                              `validate --all --strict` rejects (only at the archive gate)
 #   validate-all               openspec validate --all --strict (main specs + changes); on failure
 #                              records the failing items and their messages
-#   manifest <key=value>...    create/merge .openspec-ci/manifest.json (sets created_at once,
-#                              updated_at always)
+#   spec-preflight <change-id> archive the change into a scratch copy of openspec/ and run
+#                              validate --all --strict there: catches a delta that no longer
+#                              applies to the current main specs before the archive gate. An
+#                              already archived change only gets validate --all.
+#   guard-resolve <change-id> <conflicts-file>
+#                              after the resolve agent, during a merge: files it changed (vs the
+#                              index) must be conflicted files or under this change's folder,
+#                              never .github/ scripts/ tasks/ .claude/; no conflict markers left
+#   manifest-path <task-id>    print the task's manifest path (.openspec-ci/manifests/<task>.json;
+#                              the pre-026 .openspec-ci/manifest.json if only that one exists)
+#   manifest <key=value>...    create/merge the manifest of task=<id> (or $OPENSPEC_CI_TASK); sets
+#                              created_at once, updated_at always; moves a pre-026 manifest
 # Env
 #   OPENSPEC_CI_FAILURES  file that collects failure reasons for scripts/run-summary.sh
 #                         (default $RUNNER_TEMP/openspec-ci-failures.txt in CI, unset locally)
@@ -170,10 +180,12 @@ cmd_new_specs_have_purpose() {
     [[ -d "openspec/specs/$cap" ]] && continue   # existing capability: its Purpose is already set
     checked=$((checked + 1))
     text="$(awk '/^## Purpose[[:space:]]*$/ {f=1; next} /^#/ {f=0} f && NF {print}' "$f")"
-    if [[ -z "$text" || "$text" =~ ^[[:space:]]*(TBD|TODO) ]]; then missing+=("$f"); fi
+    # openspec validate --strict also rejects a Purpose under 50 characters.
+    if [[ -z "$text" || "$text" =~ ^[[:space:]]*(TBD|TODO) ]]; then missing+=("$f (missing)")
+    elif [[ "$(tr -d '\n' <<<"$text" | wc -c)" -lt 50 ]]; then missing+=("$f (under 50 characters)"); fi
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
-    local msg="new capability delta spec(s) without a '## Purpose' (archive would write a placeholder that fails validate --strict)"
+    local msg="new capability delta spec(s) need a '## Purpose' of at least 50 characters (else the archived main spec fails validate --strict)"
     record "openspec-ops new-specs-have-purpose: FAIL: $msg"
     detail "$(printf '%s\n' "${missing[@]}")"
     echo "openspec-ops: FAIL: $msg" >&2
@@ -195,13 +207,31 @@ cmd_validate_all() {
   exit 2
 }
 
+manifest_path() { # <task-id>
+  local task="$1" new=".openspec-ci/manifests/$1.json" old=".openspec-ci/manifest.json"
+  [[ "$task" =~ ^task-[0-9]+$ ]] || die "task-id must look like task-N"
+  if [[ ! -f "$new" && -f "$old" && "$(jq -r '.task // empty' "$old")" == "$task" ]]; then
+    echo "$old"
+  else
+    echo "$new"
+  fi
+}
+
+cmd_manifest_path() { need jq; manifest_path "${1:-}"; }
+
 cmd_manifest() {
   [[ $# -gt 0 ]] || die "manifest needs at least one key=value"
   need jq
-  local file=".openspec-ci/manifest.json" now kv key
-  mkdir -p .openspec-ci
+  local task="${OPENSPEC_CI_TASK:-}" kv key
+  for kv in "$@"; do [[ "$kv" == task=* ]] && task="${kv#task=}"; done
+  [[ -n "$task" ]] || die "manifest needs task=<id> or OPENSPEC_CI_TASK"
+  local file; file="$(manifest_path "$task")"
+  # One manifest per task, so parallel PRs never edit the same file (026). Move a pre-026 one.
+  local new=".openspec-ci/manifests/$task.json"
+  mkdir -p .openspec-ci/manifests
+  if [[ "$file" != "$new" ]]; then mv "$file" "$new"; file="$new"; fi
   [[ -f "$file" ]] || echo '{}' > "$file"
-  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local now; now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   local args=(--arg now "$now") filter='.'
   local i=0
   for kv in "$@"; do
@@ -218,6 +248,61 @@ cmd_manifest() {
   cat "$file"
 }
 
+cmd_spec_preflight() {
+  local change_id="${1:-}"; valid_change_id "$change_id"
+  need openspec
+  local tmp out; tmp="$(mktemp -d)"
+  cp -R openspec "$tmp/"
+  if [[ -d "openspec/changes/$change_id" ]]; then
+    if ! out="$(cd "$tmp" && openspec archive -y "$change_id" 2>&1)"; then
+      echo "$out" >&2
+      record "openspec-ops spec-preflight: FAIL: openspec archive of $change_id does not apply to the current main specs"
+      detail "$(tail -n 15 <<<"$out")"
+      rm -rf "$tmp"; exit 2
+    fi
+  fi
+  if ! out="$(cd "$tmp" && openspec validate --all --strict --no-interactive 2>&1)"; then
+    echo "$out" >&2
+    record "openspec-ops spec-preflight: FAIL: main specs after archiving $change_id do not validate"
+    detail "$(grep -E '✗|⚠|ERROR|WARNING|Details:' <<<"$out" || tail -n 20 <<<"$out")"
+    rm -rf "$tmp"; exit 2
+  fi
+  rm -rf "$tmp"
+  echo "openspec-ops: spec preflight OK ($change_id archives cleanly onto the current main specs)" >&2
+}
+
+cmd_guard_resolve() {
+  local change_id="${1:-}" conflicts="${2:-}"
+  valid_change_id "$change_id"
+  [[ -f "$conflicts" ]] || die "conflicts file not found: '$conflicts'"
+  local own="openspec/changes/$change_id/" paths path bad=() markers
+  paths="$( { git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)"
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    if [[ "$path" =~ ^(\.github/|scripts/|tasks/|\.claude/) ]]; then
+      bad+=("$path (protected)")
+    elif ! grep -qxF "$path" "$conflicts" && [[ "$path" != "$own"* ]]; then
+      bad+=("$path (not a conflicted file)")
+    fi
+  done <<<"$paths"
+  if [[ ${#bad[@]} -gt 0 ]]; then
+    record "openspec-ops guard-resolve: FAIL: resolve touched files it must not change"
+    detail "$(printf '%s\n' "${bad[@]}")"
+    echo "openspec-ops: FAIL: resolve touched files it must not change" >&2
+    exit 2
+  fi
+  markers="$(while IFS= read -r path; do
+      [[ -f "$path" ]] && grep -nE '^(<<<<<<<|>>>>>>>)( |$)|^=======$' "$path" | sed "s|^|$path:|"
+    done < "$conflicts" || true)"
+  if [[ -n "$markers" ]]; then
+    record "openspec-ops guard-resolve: FAIL: conflict markers left"
+    detail "$markers"
+    echo "openspec-ops: FAIL: conflict markers left" >&2
+    exit 2
+  fi
+  echo "openspec-ops: resolve diff OK ($(grep -c . <<<"$paths" || true) files changed by the agent, no markers)" >&2
+}
+
 command="${1:-}"; shift || true
 case "$command" in
   change-id)       cmd_change_id "$@" ;;
@@ -228,6 +313,9 @@ case "$command" in
   scope-documented) cmd_scope_documented "$@" ;;
   new-specs-have-purpose) cmd_new_specs_have_purpose "$@" ;;
   validate-all)    cmd_validate_all "$@" ;;
+  spec-preflight)  cmd_spec_preflight "$@" ;;
+  guard-resolve)   cmd_guard_resolve "$@" ;;
+  manifest-path)   cmd_manifest_path "$@" ;;
   manifest)        cmd_manifest "$@" ;;
-  *) die "usage: $0 <change-id|validate|tasks-complete|guard-plan-diff|guard-diff|scope-documented|new-specs-have-purpose|validate-all|manifest> [args]" ;;
+  *) die "usage: $0 <change-id|validate|tasks-complete|guard-plan-diff|guard-diff|scope-documented|new-specs-have-purpose|validate-all|spec-preflight|guard-resolve|manifest-path|manifest> [args]" ;;
 esac

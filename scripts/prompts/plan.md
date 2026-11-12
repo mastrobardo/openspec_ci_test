@@ -16,7 +16,8 @@ Rules:
 - Each acceptance criterion from the task must map to at least one requirement scenario and one
   task in tasks.md.
 - A delta spec for a capability that does not exist yet in `openspec/specs/` MUST start with a
-  `## Purpose` section (one sentence on what the capability is for), before `## ADDED Requirements`:
+  `## Purpose` section (one sentence of at least 50 characters on what the capability is for), before
+  `## ADDED Requirements`:
 
       ## Purpose
       Lets users reset the counter to zero without reloading the page.

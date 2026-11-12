@@ -8,7 +8,7 @@
 # This workflow has no PR-event triggers: PR events run from the PR's merge ref, which GitHub
 # rebuilds lazily (stale workflows, silent no-runs). openspec-events.yml turns them into dispatches,
 # and dispatches and comments always run this file from main (024).
-# Model, task and change come from .openspec-ci/manifest.json (chosen once, at Plan).
+# Model, task and change come from .openspec-ci/manifests/<task>.json (chosen once, at Plan).
 # Agent logic: scripts/run-agent.sh. Checks: scripts/openspec-ops.sh, scripts/pr-feedback.sh.
 # Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch:
 # the branch may carry older scripts, and branch edits must not run with the Claude secret.
@@ -105,7 +105,7 @@ jobs:
         env:
           HEAD_REF: ${{ steps.pr.outputs.head }}
         run: |
-          m=.openspec-ci/manifest.json
+          m="$("$CI_SCRIPTS"/openspec-ops.sh manifest-path "${HEAD_REF#openspec/}")"
           [[ -f "$m" ]] || { echo "::error::$m missing on $HEAD_REF" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           task="$(jq -r '.task // empty' "$m")"
           change="$(jq -r '.change // empty' "$m")"
@@ -226,9 +226,10 @@ jobs:
           COUNT: ${{ steps.m.outputs.count }}
           MODEL: ${{ steps.m.outputs.model }}
           STARTED_AT: ${{ steps.pr.outputs.started_at }}
+          TASK: ${{ steps.m.outputs.task }}
         run: |
           # applied_at = this run's start: the next re-apply reads feedback newer than this.
-          "$CI_SCRIPTS"/openspec-ops.sh manifest stage="$MODE" status=applied model="$MODEL" \
+          "$CI_SCRIPTS"/openspec-ops.sh manifest task="$TASK" stage="$MODE" status=applied model="$MODEL" \
             apply_run_id="$GITHUB_RUN_ID" apply_run_attempt="$GITHUB_RUN_ATTEMPT" \
             applied_at="$STARTED_AT" apply_count="$((COUNT + 1))"
 

@@ -65,3 +65,17 @@
 - Agreed (option a): Claude pushes one Purpose commit per PR branch; the user re-approves.
 - Skill: `debugging-and-error-recovery` (reproduced the archive failure locally first).
 
+## PR #3 conflict → 026: Sync + resolve stage (D16)
+- PR #4 merged first; PR #3 conflicted only on `.openspec-ci/manifest.json` (fixed path shared by
+  all branches). Unblocked by merging main into `openspec/task-4` (kept ours, `c98a58c`); both merged.
+- User asked for a sync + resolve stage and tasks to test it. Built: `openspec-sync.yml` (find PRs
+  behind main → matrix; clean merge → checks + push; conflict → `resolve` agent → guard-resolve →
+  checks + push; archived + conflict → refuse), `resolve.md`, `guard-resolve`, `spec-preflight`
+  (also in Verify), per-task manifests (main's moved to `manifests/task-4.json`), tasks 5–7.
+- Found while testing: Purpose must be ≥ 50 chars for `validate --strict` (check + prompts updated);
+  identical ADDED is "in sync"; MODIFIED of a vanished header aborts the archive (preflight catches).
+- Tests: manifest migration; preflight OK / too-short Purpose / vanished header; real App.tsx conflict
+  merge with the workflow's Merge step + stub agent through run-agent.sh → guard OK, tsc OK; guard
+  rejects markers and edits to non-conflicted files.
+- Skills: `ci-cd-and-automation`, `debugging-and-error-recovery`.
+

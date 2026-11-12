@@ -1,0 +1,17 @@
+Title: Add a page description for search engines
+
+As a maintainer, I want the page to have a meta description, so that search results describe the
+project.
+
+Description:
+Add <meta name="description" content="Proof of concept: OpenSpec changes driven by Claude Code in
+GitHub Actions." /> to the <head> of index.html.
+
+Acceptance criteria:
+- index.html contains exactly one <meta name="description"> with that content.
+- The <title> and the other <meta> tags are unchanged.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- Open Graph or other social meta tags.
+- Any change to src/.

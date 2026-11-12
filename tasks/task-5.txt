@@ -1,0 +1,17 @@
+Title: Rename the counter button label
+
+As a user, I want the counter button to say what it counts, so that the number is easier to read.
+
+Description:
+On the main page, the counter button currently reads "Count is N". Change its text to "Clicks: N"
+(for example "Clicks: 0" on load).
+
+Acceptance criteria:
+- The counter button reads "Clicks: N", where N is the current count.
+- The Reset button still sets the count to 0, and the counter button then reads "Clicks: 0".
+- No other text on the page changes.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- Styling changes.
+- Changing the Reset button.

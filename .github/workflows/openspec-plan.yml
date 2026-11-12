@@ -97,7 +97,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add openspec .openspec-ci/manifest.json
+          git add openspec .openspec-ci/manifests
           git commit -m "openspec($TASK): plan $CHANGE"
           git push -u origin "$branch"
 

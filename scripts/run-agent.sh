@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Agent execution adapter: runs one lifecycle stage with Claude Code in headless mode.
 #
-# Usage: scripts/run-agent.sh <plan|apply|reapply|verify> <task-id> [change-id]
+# Usage: scripts/run-agent.sh <plan|apply|reapply|verify|resolve> <task-id> [change-id]
 #
 # Inputs
 #   task-id     e.g. task-1 (reads tasks/<task-id>.txt)
-#   change-id   OpenSpec change name; required for apply, reapply and verify
+#   change-id   OpenSpec change name; required for every stage except plan
 # Env
 #   CLAUDE_CODE_OAUTH_TOKEN  subscription token (CI). Locally, the logged-in session is used.
 #   CLAUDE_MODEL             optional model override
 #   OPENSPEC_CI_OUT          output dir (default .openspec-ci/runs)
 #   OPENSPEC_CI_FEEDBACK     reapply only: review feedback file (scripts/pr-feedback.sh output)
+#   OPENSPEC_CI_CONFLICTS    resolve only: file listing the conflicted paths of the merge
 #   OPENSPEC_CI_FAILURES     file that collects failure reasons for scripts/run-summary.sh
 #                            (default $RUNNER_TEMP/openspec-ci-failures.txt in CI, unset locally)
 # Outputs (in $OPENSPEC_CI_OUT)
@@ -31,7 +32,7 @@ failures="${OPENSPEC_CI_FAILURES:-${RUNNER_TEMP:+$RUNNER_TEMP/openspec-ci-failur
 record() { [[ -n "$failures" ]] && printf '%s\n' "$@" >> "$failures"; return 0; }
 die() { echo "run-agent: $*" >&2; record "run-agent $stage: $*"; exit 1; }
 
-[[ "$stage" =~ ^(plan|apply|reapply|verify)$ ]] || die "stage must be plan|apply|reapply|verify"
+[[ "$stage" =~ ^(plan|apply|reapply|verify|resolve)$ ]] || die "stage must be plan|apply|reapply|verify|resolve"
 [[ "$task_id" =~ ^task-[0-9]+$ ]] || die "task-id must look like task-N"
 [[ -f "tasks/$task_id.txt" ]] || die "tasks/$task_id.txt not found"
 if [[ "$stage" != plan && -z "$change_id" ]]; then die "change-id required for $stage"; fi
@@ -39,6 +40,11 @@ feedback="${OPENSPEC_CI_FEEDBACK:-}"
 if [[ "$stage" == reapply ]]; then
   [[ -s "$feedback" ]] || die "OPENSPEC_CI_FEEDBACK must point to a non-empty file for reapply"
   [[ "$feedback" =~ ^[A-Za-z0-9._/-]+$ ]] || die "unsafe OPENSPEC_CI_FEEDBACK path"
+fi
+conflicts="${OPENSPEC_CI_CONFLICTS:-}"
+if [[ "$stage" == resolve ]]; then
+  [[ -s "$conflicts" ]] || die "OPENSPEC_CI_CONFLICTS must point to a non-empty file for resolve"
+  [[ "$conflicts" =~ ^[A-Za-z0-9._/-]+$ ]] || die "unsafe OPENSPEC_CI_CONFLICTS path"
 fi
 
 command -v claude >/dev/null || die "claude CLI not installed"
@@ -60,12 +66,12 @@ fi
 common_ro=(Read Glob Grep Skill "Bash(openspec:*)" "Bash(git diff:*)" "Bash(git log:*)" "Bash(git status:*)" "Bash(ls:*)")
 case "$stage" in
   plan)   tools=("${common_ro[@]}" "Write(openspec/**)" "Edit(openspec/**)") ;;
-  apply|reapply) tools=("${common_ro[@]}" Write Edit "Bash(pnpm build)" "Bash(pnpm lint)" "Bash(pnpm install:*)") ;;
+  apply|reapply|resolve) tools=("${common_ro[@]}" Write Edit "Bash(pnpm build)" "Bash(pnpm lint)" "Bash(pnpm install:*)") ;;
   verify) tools=("${common_ro[@]}" "Bash(pnpm build)" "Bash(pnpm lint)") ;;
 esac
 
 prompt="$(sed -e "s|{{TASK_ID}}|$task_id|g" -e "s|{{CHANGE_ID}}|$change_id|g" \
-  -e "s|{{FEEDBACK_FILE}}|$feedback|g" \
+  -e "s|{{FEEDBACK_FILE}}|$feedback|g" -e "s|{{CONFLICTS_FILE}}|$conflicts|g" \
   "$script_dir/prompts/$stage.md")"
 
 out="${OPENSPEC_CI_OUT:-.openspec-ci/runs}"

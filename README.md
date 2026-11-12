@@ -45,6 +45,13 @@ are in [`memory/repo/poc-results.md`](memory/repo/poc-results.md).
         │  human: squash merge
         ▼
  main: code + openspec/specs/<capability>/ + openspec/changes/archive/<date>-<change>/
+        │
+        │  push to main (or a "/sync" comment)
+        ▼
+ ┌──────────────┐  every other open OpenSpec PR that is behind main: git merge main
+ │    Sync      │  clean → no agent; conflict → agent "resolve" (both sides kept)
+ └──────────────┘  checks: guard-resolve, validate, spec preflight, build + lint
+                   → merge commit pushed, comment; the reviewer re-approves (→ Verify)
 ```
 
 ## Repository layout
@@ -53,13 +60,14 @@ are in [`memory/repo/poc-results.md`](memory/repo/poc-results.md).
 |---|---|
 | `tasks/task-N.txt` | The input: a small task with acceptance criteria and an out-of-scope list (stand-in for a ticket). |
 | `.github/workflows/openspec-{plan,apply,verify}.yml` | Orchestration only: checkouts, permissions, calls into `scripts/`. Started by dispatch (and `/reapply` comments), so they always run from `main`. |
+| `.github/workflows/openspec-sync.yml` | Sync: after every push to `main` (or `/sync`), merges `main` into each open OpenSpec PR that is behind it; conflicts go to the `resolve` agent. |
 | `.github/workflows/openspec-events.yml` | Trampoline: turns Ready for review, Request changes and Approve into dispatches of Apply/Verify on `main`. |
 | `scripts/run-agent.sh` | Runs one stage with `claude -p`: per-stage tool allowlist, model, output files, exit codes. |
-| `scripts/prompts/{plan,apply,reapply,verify}.md` | The stage prompts. |
+| `scripts/prompts/{plan,apply,reapply,verify,resolve}.md` | The stage prompts. |
 | `scripts/openspec-ops.sh` | Deterministic checks: `change-id`, `validate`, `tasks-complete`, `guard-plan-diff`, `guard-diff`, `scope-documented`, `manifest`. |
 | `scripts/pr-feedback.sh` | Collects review feedback for re-apply (write-access users only, newer than the last apply). |
 | `scripts/run-summary.sh` | The run summary: job summary, `summary.md` in the artifact, the failure comment. |
-| `.openspec-ci/manifest.json` | Per-branch audit trail: task, change, stage, model, run ids, SHAs, `applied_at`. |
+| `.openspec-ci/manifests/<task>.json` | Per-task audit trail: change, stage, model, run ids, SHAs, `applied_at`, sync results. One file per task, so parallel PRs never conflict on it. |
 | `.openspec-ci/runs/` | Per-run agent output (gitignored; uploaded as the run artifact). |
 | `openspec/`, `.claude/` | OpenSpec project, `/opsx:*` commands and skills (from `openspec init --tools claude`). |
 | `docs/PLAN.md`, `docs/PROGRESS.md` | Decisions D1–D14 and the step-by-step progress map. |
@@ -95,6 +103,7 @@ Steps 3 and 4 can also be done through the API (`gh api -X PUT repos/<owner>/<re
 | Verify | **Approve** | `gh workflow run "OpenSpec Verify" -f pr=N` | Verdict comment; the job fails unless PASS |
 | Archive | Approve the **openspec-archive** deployment in the Verify run (**Review deployments**) | `gh workflow run "OpenSpec Verify" -f pr=N` (verifies again, then waits at the gate) | Archive commit; "Ready to squash merge" |
 | Merge | **Squash and merge** | – | Code, main specs and the archived change land together |
+| Sync | Any push to `main`, or a comment starting with `/sync` | `gh workflow run "OpenSpec Sync" [-f pr=N]` | Other open PRs merged with `main`; conflicts resolved by the agent; comment asking to re-approve |
 
 Notes:
 
@@ -123,6 +132,16 @@ Notes:
   stale (for an older head). Re-approve after any new push.
 - **Archive (D13).** Archive is a second job in the Verify run. It runs only after PASS and waits for the environment
   approval. Its concurrency group is separate, so a waiting gate never blocks Apply on the same PR.
+- **Sync and resolve (D16).** After a merge, every other open OpenSpec PR is merged with `main`.
+  A clean merge is checked and pushed without an agent. On a conflict, the `resolve` agent combines
+  both sides: `main` is law, and this change is adapted on top of it, including its own delta specs if they
+  quote text that `main` changed. `guard-resolve` allows edits only to conflicted files and the
+  change's own folder. A **spec preflight** (archive into a scratch copy, then `validate --all`) proves
+  the change still applies to `main`'s specs. The push makes any approval stale, so re-approve to run
+  Verify. Conflicts on an already archived PR are left to a human.
+- **New capabilities need a Purpose.** A delta spec for a new capability starts with `## Purpose`
+  (at least 50 characters). Otherwise the archived main spec fails `validate --strict`. This is checked at Plan,
+  Apply and Verify.
 - **Tasks must be doable unattended.** Plan only writes tasks the CI agent can finish and check
   (edit, build, lint, search the source or `dist/`). Visual checks become notes for the reviewer.
 
@@ -149,6 +168,7 @@ The full agent output is `<stage>.json` / `<stage>.md` in the artifact
 | `/reapply` did nothing | The comment did not start with `/reapply` | Post it again with `/reapply` at the very start |
 | Verify fails "approval is stale" | New commits after the approval | Re-approve |
 | Apply fails at `tasks-complete` | The agent could not finish a task (see Why it failed) | `/reapply <what to change>`, e.g. reword a task CI cannot run |
+| PR shows merge conflicts | `main` moved after the PR was opened | Wait for the Sync run (it starts on every push to `main`), or comment `/sync` |
 | Runs stuck `queued` or `startup_failure` everywhere | GitHub incident | Check githubstatus.com; re-run a known-good commit before blaming the code |
 
 More, with the evidence behind each: [`memory/repo/ci-gotchas.md`](memory/repo/ci-gotchas.md).

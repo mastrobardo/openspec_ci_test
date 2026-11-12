@@ -2,7 +2,7 @@
 # Run summary for a lifecycle stage: what ran, and, if the run failed, why.
 # Used for the job summary, the artifact (summary.md) and the failure comment on the PR.
 #
-# Usage: scripts/run-summary.sh <plan|apply|reapply|verify|archive> <title> [label=value]...
+# Usage: scripts/run-summary.sh <plan|apply|reapply|verify|archive|sync|resolve> <title> [label=value]...
 #
 # Inputs (all optional, so a run that failed early still gets a summary)
 #   label=value                 extra "- label: value" lines (empty values print n/a)
@@ -22,7 +22,7 @@ json="$out/$stage.json"; report="$out/$stage.md"
 
 # Section of the agent's report that explains a problem, per stage.
 case "$stage" in
-  apply|reapply) section="Deviations" ;;
+  apply|reapply|resolve) section="Deviations" ;;
   verify)        section="Issues" ;;
   *)             section="" ;;
 esac

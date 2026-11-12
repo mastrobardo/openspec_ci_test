@@ -1,0 +1,317 @@
+# Sync (026, D16): keep open OpenSpec PRs merged with main, and resolve conflicts with an agent.
+#   Push to main (a PR was merged)   -> every open openspec/task-N PR that is behind main
+#   PR comment "/sync"               -> that PR (owner/member/collaborator only)
+#   Manual (pr=N, or empty = all)    -> that PR, or every PR that is behind main
+# Per PR: git merge origin/main.
+#   clean     -> no agent: checks, then push the merge commit
+#   conflict  -> agent stage "resolve" (scripts/prompts/resolve.md), guard-resolve, checks, push
+#   failure   -> nothing is pushed; the run summary is posted on the PR
+# Checks: validate, new-capability Purpose, tasks complete, spec preflight (the change still archives
+# onto main's specs), pnpm build + lint; an archived change gets validate-all + build + lint.
+# A push after an approval makes it stale: the comment asks the reviewer to re-approve (-> Verify).
+# All triggers run this file from main. Scripts are TRUSTED copies from the workflow's commit.
+name: OpenSpec Sync
+
+on:
+  push:
+    branches: [main]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number (empty = every open openspec/task-N PR that is behind main)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write        # push the merge commit to the PR branch
+  pull-requests: write   # comment on the PR
+
+defaults:
+  run:
+    shell: bash          # -eo pipefail
+
+jobs:
+  find:
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/sync') &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      prs: ${{ steps.find.outputs.prs }}
+    steps:
+      - name: Find PRs that are behind main
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ONE_PR: ${{ github.event.issue.number || inputs.pr }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID/reactions" \
+              -f content=eyes --silent || echo "::warning::could not add a reaction (continuing)"
+          fi
+          [[ -z "$ONE_PR" || "$ONE_PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number"; exit 1; }
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)"
+          prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
+                   --json number,headRefName,headRefOid,isCrossRepository)"
+          picked=()
+          while IFS=$'\t' read -r n ref sha cross; do
+            [[ -z "$n" ]] && continue
+            [[ -n "$ONE_PR" && "$n" != "$ONE_PR" ]] && continue
+            [[ "$ref" =~ ^openspec/task-[0-9]+$ && "$cross" == false ]] || continue
+            behind="$(gh api "repos/$GITHUB_REPOSITORY/compare/$main_sha...$sha" --jq .behind_by)"
+            echo "PR #$n ($ref): behind main by $behind"
+            [[ "$behind" -gt 0 ]] && picked+=("$n")
+          done < <(jq -r '.[] | [.number, .headRefName, .headRefOid, .isCrossRepository] | @tsv' <<<"$prs")
+          json="$(printf '%s\n' "${picked[@]}" | jq -Rsc 'split("\n") | map(select(. != "") | tonumber)')"
+          echo "prs=$json" >> "$GITHUB_OUTPUT"
+          echo "to sync: $json"
+          echo "### OpenSpec Sync: PRs behind \`$DEFAULT_BRANCH\` (${main_sha:0:7}): \`$json\`" >> "$GITHUB_STEP_SUMMARY"
+
+  sync:
+    needs: find
+    if: needs.find.outputs.prs != '[]' && needs.find.outputs.prs != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.find.outputs.prs) }}
+    concurrency:
+      group: openspec-pr-${{ matrix.pr }}   # shared with Apply and Verify
+      cancel-in-progress: false
+    env:
+      PR: ${{ matrix.pr }}
+      CONFLICTS: .openspec-ci/runs/conflicts.txt
+    steps:
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefName,isCrossRepository,state)"
+          head="$(jq -r .headRefName <<<"$info")"
+          [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout workflow commit (trusted scripts)
+        id: checkout_scripts
+        uses: actions/checkout@v7
+
+      - name: Stash trusted scripts outside the workspace
+        id: stash_scripts
+        run: |
+          cp -R scripts "$RUNNER_TEMP/ci-scripts"
+          echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
+
+      - name: Checkout PR branch (full history, for the merge)
+        id: checkout_pr
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.pr.outputs.head }}
+          fetch-depth: 0
+
+      - name: Read manifest
+        id: m
+        env:
+          HEAD_REF: ${{ steps.pr.outputs.head }}
+        run: |
+          task="${HEAD_REF#openspec/}"
+          m="$("$CI_SCRIPTS"/openspec-ops.sh manifest-path "$task")"
+          [[ -f "$m" ]] || { echo "::error::$m missing on $HEAD_REF" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          model="$(jq -r '.model // empty' "$m")"
+          echo "task=$task" >> "$GITHUB_OUTPUT"
+          echo "change=$(jq -r '.change // empty' "$m")" >> "$GITHUB_OUTPUT"
+          echo "stage=$(jq -r '.stage // empty' "$m")" >> "$GITHUB_OUTPUT"
+          echo "model=${model:-sonnet}" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq -r '.sync_count // 0' "$m")" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Merge main
+        id: merge
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          mkdir -p .openspec-ci/runs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          main_sha="$(git rev-parse "origin/$DEFAULT_BRANCH")"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          if git merge-base --is-ancestor "$main_sha" HEAD; then
+            echo "result=uptodate" >> "$GITHUB_OUTPUT"; echo "already up to date with main"; exit 0
+          fi
+          if git merge --no-ff --no-commit "$main_sha"; then
+            echo "result=clean" >> "$GITHUB_OUTPUT"; : > "$CONFLICTS"
+          else
+            git diff --name-only --diff-filter=U > "$CONFLICTS"
+            [[ -s "$CONFLICTS" ]] || { echo "::error::merge failed without conflicted files" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+            echo "conflicts:"; cat "$CONFLICTS"
+          fi
+
+      - uses: pnpm/action-setup@v6
+        id: setup_pnpm
+        if: steps.merge.outputs.result != 'uptodate'
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        id: setup_node
+        if: steps.merge.outputs.result != 'uptodate'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies and tools
+        id: install
+        if: steps.merge.outputs.result != 'uptodate'
+        run: |
+          pnpm install --frozen-lockfile
+          npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
+
+      - name: Refuse to resolve an archived change
+        id: archived_conflict
+        if: steps.merge.outputs.result == 'conflict' && steps.m.outputs.stage == 'archived'
+        run: |
+          echo "::error::this change is already archived; resolve the conflict by hand (files: $(paste -sd, "$CONFLICTS"))" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"
+          exit 1
+
+      - name: Run agent (resolve)
+        id: agent
+        if: steps.merge.outputs.result == 'conflict'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_MODEL: ${{ steps.m.outputs.model }}
+          TASK: ${{ steps.m.outputs.task }}
+          CHANGE: ${{ steps.m.outputs.change }}
+        run: OPENSPEC_CI_CONFLICTS="$CONFLICTS" "$CI_SCRIPTS"/run-agent.sh resolve "$TASK" "$CHANGE"
+
+      - name: Guard - resolve touched only conflicted files and this change
+        id: guard
+        if: steps.merge.outputs.result == 'conflict'
+        env:
+          CHANGE: ${{ steps.m.outputs.change }}
+        run: '"$CI_SCRIPTS"/openspec-ops.sh guard-resolve "$CHANGE" "$CONFLICTS"'
+
+      - name: Check result (validate, Purpose, tasks, spec preflight, build, lint)
+        id: check
+        if: steps.merge.outputs.result != 'uptodate'
+        env:
+          CHANGE: ${{ steps.m.outputs.change }}
+          STAGE: ${{ steps.m.outputs.stage }}
+        run: |
+          if [[ "$STAGE" == archived ]]; then
+            "$CI_SCRIPTS"/openspec-ops.sh validate-all
+          else
+            "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
+            "$CI_SCRIPTS"/openspec-ops.sh new-specs-have-purpose "$CHANGE"
+            [[ "$STAGE" == plan ]] || "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
+            "$CI_SCRIPTS"/openspec-ops.sh spec-preflight "$CHANGE"
+          fi
+          pnpm build 2>&1 | tee .openspec-ci/runs/build.log
+          pnpm lint 2>&1 | tee -a .openspec-ci/runs/build.log
+
+      - name: Write manifest, commit, push and comment
+        id: push
+        if: steps.merge.outputs.result != 'uptodate'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK: ${{ steps.m.outputs.task }}
+          CHANGE: ${{ steps.m.outputs.change }}
+          STAGE: ${{ steps.m.outputs.stage }}
+          COUNT: ${{ steps.m.outputs.count }}
+          RESULT: ${{ steps.merge.outputs.result }}
+          MAIN_SHA: ${{ steps.merge.outputs.main_sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          "$CI_SCRIPTS"/openspec-ops.sh manifest task="$TASK" synced_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            synced_main_sha="$MAIN_SHA" sync_result="$RESULT" sync_run_id="$GITHUB_RUN_ID" \
+            sync_count="$((COUNT + 1))" > /dev/null
+          git add -A
+          if [[ "$RESULT" == conflict ]]; then
+            git commit -q -m "openspec($TASK): merge main ${MAIN_SHA:0:7}, conflicts resolved by agent ($(paste -sd' ' "$CONFLICTS"))"
+          else
+            git commit -q -m "openspec($TASK): merge main ${MAIN_SHA:0:7} (clean)"
+          fi
+          git push origin "HEAD:$HEAD_REF"
+
+          if [[ "$STAGE" == archived ]]; then
+            next="This change is already archived: review the merge, then squash merge."
+          elif [[ "$STAGE" == plan ]]; then
+            next="The PR is still a plan: mark it Ready for review to apply it on top of main."
+          else
+            next="Any earlier approval is now **stale**: review and **re-approve** to run Verify on the merged result."
+          fi
+          body="$RUNNER_TEMP/comment.md"
+          { if [[ "$RESULT" == conflict ]]; then
+              echo "## 🔀 OpenSpec Sync: merged \`main\` @ ${MAIN_SHA:0:7}, conflicts resolved by the agent"; echo
+              echo "Conflicted: $(sed 's/^/`/; s/$/`/' "$CONFLICTS" | paste -sd, - | sed 's/,/, /g')"; echo
+              if [[ -s .openspec-ci/runs/resolve.md ]]; then cat .openspec-ci/runs/resolve.md
+              else echo "(the agent returned no report)"; fi
+            else
+              echo "## 🔄 OpenSpec Sync: merged \`main\` @ ${MAIN_SHA:0:7} (clean, no agent)"; echo
+              if [[ "$STAGE" == archived ]]; then echo "Checks passed on the merged result: validate --all, build, lint."
+              else echo "Checks passed on the merged result: validate, Purpose, tasks, spec preflight, build, lint."; fi
+            fi
+            printf '\n%s\n\n---\nGenerated by [OpenSpec Sync](%s). Re-run with a `/sync` comment.\n' "$next" "$RUN_URL"
+          } > "$body"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+
+      - name: Run summary (job summary + summary.md; on failure, why)
+        id: summary
+        if: always()
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+          CHANGE: ${{ steps.m.outputs.change }}
+          CLAUDE_MODEL: ${{ steps.m.outputs.model }}
+          RESULT: ${{ steps.merge.outputs.result }}
+          MAIN_SHA: ${{ steps.merge.outputs.main_sha }}
+        run: |
+          mkdir -p .openspec-ci/runs
+          stage=sync; [[ "$RESULT" == conflict ]] && stage=resolve
+          if [[ -x "${CI_SCRIPTS:-}/run-summary.sh" ]]; then
+            conflicts="$(paste -sd, "$CONFLICTS" 2>/dev/null || true)"
+            "$CI_SCRIPTS"/run-summary.sh "$stage" "Sync: PR #$PR" change="$CHANGE" \
+              "merge=${RESULT:-not reached} with main ${MAIN_SHA:0:7}" "conflicts=${conflicts:-none}" > .openspec-ci/runs/summary.md
+          else
+            { echo "### OpenSpec Sync: PR #$PR"; echo "**Result: ❌ failed** before checkout"; echo
+              sed 's/^::error::/- /' "$RUNNER_TEMP/openspec-ci-failures.txt" 2>/dev/null || true
+            } > .openspec-ci/runs/summary.md
+          fi
+          cat .openspec-ci/runs/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on failure
+        id: fail_comment
+        if: failure() && steps.pr.outputs.head != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PUSH_OUTCOME: ${{ steps.push.outcome }}
+        run: |
+          body="$RUNNER_TEMP/failure-comment.md"
+          if [[ "$PUSH_OUTCOME" == failure ]]; then pushed="It failed while committing, pushing or commenting: check the branch."
+          else pushed="Nothing was pushed; the branch is unchanged."; fi
+          { sed '1s/^### /## ❌ /' .openspec-ci/runs/summary.md
+            printf '\n---\n%s [Run log and artifact](%s).\n' "$pushed" "$RUN_URL"
+            printf 'Fix by hand (merge main into the branch) or comment `/sync` to retry.\n'
+          } > "$body"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+
+      - name: Upload run output
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: openspec-sync-pr${{ matrix.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .openspec-ci/runs/
+          if-no-files-found: ignore

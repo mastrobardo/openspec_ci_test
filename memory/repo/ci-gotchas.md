@@ -132,4 +132,16 @@ Learned testing Apply on PR #1 (2026-11-11):
   Purpose is read only when the capability is created. Found at the archive gate of PR #3/#4
   (2026-11-12); caught from 025 on by `openspec-ops.sh new-specs-have-purpose` at Plan, Apply and
   Verify.
+- A per-branch file at a **fixed path** (the old `.openspec-ci/manifest.json`) conflicts on every second
+  parallel PR: each squash merge puts one branch's copy on main. Per-task paths fix it (026).
+  `.gitattributes merge=ours` would not help: GitHub's merges ignore custom merge drivers.
+- `openspec validate --strict` rejects a new main spec whose Purpose is under 50 characters; the
+  archive only warns ("carried Purpose is under 50 characters"). `new-specs-have-purpose` checks the
+  length too (026).
+- `openspec archive` of a MODIFIED requirement whose header is no longer in the main spec aborts
+  ("MODIFIED failed for header … not found"), while `validate <change>` only prints an INFO. An
+  identical ADDED block is "already in sync" (not an error). `spec-preflight` runs the archive in a
+  scratch copy to catch the first case early.
+- The sync workflow runs on `push` to main. Pushes made with `GITHUB_TOKEN` (the sync's own merge
+  commits on PR branches) do not trigger workflows, so there is no loop.
 
