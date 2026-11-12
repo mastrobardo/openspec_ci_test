@@ -21,7 +21,7 @@ Changing the heading MUST NOT change any other visible text on the main page or 
 
 #### Scenario: Surrounding text preserved
 - **WHEN** the main page is rendered after the heading change
-- **THEN** all visible text other than the `<h1>` matches the text shown before the change, including the "Edit src/App.tsx and save to test HMR" paragraph, the "Count is" counter button, the "Documentation" and "Connect with us" sections with their links, and the version footer
+- **THEN** all visible text other than the `<h1>` matches the text shown before the change, including the "Edit src/App.tsx and save to test HMR" paragraph, the "Clicks:" counter button, the "Documentation" and "Connect with us" sections with their links, and the version footer
 
 #### Scenario: Page title and styling untouched
 - **WHEN** the heading change is applied
