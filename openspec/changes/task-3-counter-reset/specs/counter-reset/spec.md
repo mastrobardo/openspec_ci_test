@@ -1,3 +1,6 @@
+## Purpose
+Lets users return the main page counter to 0 in place, without reloading the page.
+
 ## ADDED Requirements
 
 ### Requirement: Reset button rendered next to the counter
