@@ -21,5 +21,5 @@ The heading is a hard-coded JSX string in `src/App.tsx` (`<h1>Get started</h1>`,
 
 ## Risks / Trade-offs
 
-- [The longer heading wraps differently at narrow widths with the existing `h1` styling] → Accepted. Styling changes are out of scope. A visual check in `pnpm dev` is part of the tasks.
+- [The longer heading wraps differently at narrow widths with the existing `h1` styling] → Accepted. Styling changes are out of scope. A visual check in `pnpm dev` cannot run in CI, so it is left to the reviewer as a note in the report rather than a task.
 - [An accidental edit to nearby text] → The diff check in the tasks confirms that only the `<h1>` line changed.
