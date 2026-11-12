@@ -54,3 +54,14 @@
   `bash -n`, no `${{ }}` in `run:`, actionlint (only old style notes).
 - Skill: `ci-cd-and-automation`.
 
+## Third run (PR #4 task-3, PR #3 task-4, sonnet) and 025
+- Plan ×2 → Ready ×2 → trampoline → parallel Apply → Approve ×2 → trampoline → Verify PASS ×2:
+  all worked. Both archive jobs failed: `validate --all --strict` rejected the placeholder Purpose
+  of the new main spec. Root cause: the Sonnet plans had no `## Purpose` in the new capability's
+  delta (the Opus plans for PR #1/#2 did).
+- 025: `new-specs-have-purpose` (Plan, Apply, Verify), `validate-all` (archive; records why),
+  prompt rules. Tested on clones of the real PR branches: both flagged; adding the Purpose line makes
+  check, archive and validate-all pass.
+- Agreed (option a): Claude pushes one Purpose commit per PR branch; the user re-approves.
+- Skill: `debugging-and-error-recovery` (reproduced the archive failure locally first).
+

@@ -126,4 +126,10 @@ Learned testing Apply on PR #1 (2026-11-11):
   `issue_comment`). A dispatch made with `GITHUB_TOKEN` is the documented exception that does start a
   run. The approval sha (`review.commit_id`) is passed as `approved_sha`, because a dispatched run has
   no review payload. The trampoline itself still runs from the merge ref: keep it stable.
+- `openspec validate <change> --strict` passes a delta for a **new** capability without `## Purpose`,
+  but `openspec archive` then writes a placeholder Purpose into the new main spec, and
+  `validate --all --strict` rejects it (a WARNING counts as an error under strict). The delta's
+  Purpose is read only when the capability is created. Found at the archive gate of PR #3/#4
+  (2026-11-12); caught from 025 on by `openspec-ops.sh new-specs-have-purpose` at Plan, Apply and
+  Verify.
 
