@@ -113,3 +113,7 @@ Learned testing Apply on PR #1 (2026-11-11):
   Fix (020): `plan.md` rule: only tasks an unattended agent can finish and check (edit, build, lint,
   tests, grep source/`dist/`); visual checks go to "Assumptions and open questions" as reviewer
   checks. Unblock an existing PR with `/reapply` asking to reword the task.
+- `${{ toJSON(steps) }}` only lists steps that have an `id`. To report the failed step (021),
+  every step has one. The job summary step must run before `upload-artifact` to include
+  `summary.md` in the artifact. A second `actions/checkout` wipes the workspace, so failure reasons
+  are collected in `$RUNNER_TEMP` (outside it), not in `.openspec-ci/runs/`.

@@ -64,18 +64,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number"; exit 1; }
+          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
             --json headRefName,isCrossRepository,isDraft,state)"
           head="$(jq -r .headRefName <<<"$info")"
-          [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N"; exit 1; }
-          [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported"; exit 1; }
-          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open"; exit 1; }
-          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft"; exit 1; }
+          [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           echo "head=$head" >> "$GITHUB_OUTPUT"
           echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Acknowledge /reapply comment
+        id: ack
         if: github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -85,14 +86,17 @@ jobs:
             -f content=eyes --silent || echo "::warning::could not add a reaction (continuing)"
 
       - name: Checkout workflow commit (trusted scripts)
+        id: checkout_scripts
         uses: actions/checkout@v7
 
       - name: Stash trusted scripts outside the workspace
+        id: stash_scripts
         run: |
           cp -R scripts "$RUNNER_TEMP/ci-scripts"
           echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
 
       - name: Checkout PR branch (the work)
+        id: checkout_pr
         uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr.outputs.head }}   # the PR branch itself, not the merge ref
@@ -103,12 +107,12 @@ jobs:
           HEAD_REF: ${{ steps.pr.outputs.head }}
         run: |
           m=.openspec-ci/manifest.json
-          [[ -f "$m" ]] || { echo "::error::$m missing on $HEAD_REF"; exit 1; }
+          [[ -f "$m" ]] || { echo "::error::$m missing on $HEAD_REF" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           task="$(jq -r '.task // empty' "$m")"
           change="$(jq -r '.change // empty' "$m")"
-          [[ "$HEAD_REF" == "openspec/$task" ]] || { echo "::error::manifest task '$task' does not match $HEAD_REF"; exit 1; }
+          [[ "$HEAD_REF" == "openspec/$task" ]] || { echo "::error::manifest task '$task' does not match $HEAD_REF" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$(jq -r '.stage // empty' "$m")" != archived ]] \
-            || { echo "::error::change already archived; revert the archive commit to reopen it"; exit 1; }
+            || { echo "::error::change already archived; revert the archive commit to reopen it" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           # Single point of model choice: the alias picked at Plan. Older manifests only have
           # plan_model (the resolved id); use it if it is a single model, else fall back to sonnet.
           model="$(jq -r '.model // empty' "$m")"
@@ -135,7 +139,7 @@ jobs:
           case "$GITHUB_EVENT_NAME" in
             pull_request) mode=apply ;;
             pull_request_review|issue_comment)
-              [[ "$n" -gt 0 ]] || { echo "::error::no review feedback since ${since} (only owner/members/collaborators count; empty reviews and a bare /reapply are ignored)"; exit 1; }
+              [[ "$n" -gt 0 ]] || { echo "::error::no review feedback since ${since} (only owner/members/collaborators count; empty reviews and a bare /reapply are ignored)" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
               mode=reapply ;;
             workflow_dispatch)
               if [[ -n "$APPLIED_AT" && "$n" -gt 0 ]]; then mode=reapply; else mode=apply; fi ;;
@@ -145,29 +149,34 @@ jobs:
           echo "mode=$mode feedback_items=$n since=$since"
 
       - uses: pnpm/action-setup@v6
+        id: setup_pnpm
         with:
           version: 10
 
       - uses: actions/setup-node@v7
+        id: setup_node
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies and tools
+        id: install
         run: |
           pnpm install --frozen-lockfile
           npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
 
       - name: Check change before apply
+        id: precheck
         env:
           TASK: ${{ steps.m.outputs.task }}
           CHANGE: ${{ steps.m.outputs.change }}
         run: |
           found="$("$CI_SCRIPTS"/openspec-ops.sh change-id "$TASK")"
-          [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'"; exit 1; }
+          [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
 
       - name: Run agent
+        id: agent
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_MODEL: ${{ steps.m.outputs.model }}
@@ -179,6 +188,7 @@ jobs:
           "$CI_SCRIPTS"/run-agent.sh "$MODE" "$TASK" "$CHANGE"
 
       - name: Guard - allowed files only (reapply lists spec impact)
+        id: guard
         env:
           MODE: ${{ steps.mode.outputs.mode }}
           CHANGE: ${{ steps.m.outputs.change }}
@@ -188,21 +198,25 @@ jobs:
           cat .openspec-ci/runs/spec-impact.txt
 
       - name: Check scope changes are documented (reapply, D12)
+        id: scope
         if: steps.mode.outputs.mode == 'reapply'
         env:
           CHANGE: ${{ steps.m.outputs.change }}
         run: '"$CI_SCRIPTS"/openspec-ops.sh scope-documented "$CHANGE" .openspec-ci/runs/spec-impact.txt'
 
       - name: Check result (tasks, validate, build, lint)
+        id: check
         env:
           CHANGE: ${{ steps.m.outputs.change }}
         run: |
           "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
           "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
-          pnpm build
-          pnpm lint
+          # Output also goes to build.log so the run summary can quote a failure.
+          pnpm build 2>&1 | tee .openspec-ci/runs/build.log
+          pnpm lint 2>&1 | tee -a .openspec-ci/runs/build.log
 
       - name: Write manifest
+        id: manifest
         env:
           MODE: ${{ steps.mode.outputs.mode }}
           COUNT: ${{ steps.m.outputs.count }}
@@ -215,6 +229,7 @@ jobs:
             applied_at="$STARTED_AT" apply_count="$((COUNT + 1))"
 
       - name: Commit, push and comment
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
           MODE: ${{ steps.mode.outputs.mode }}
@@ -252,6 +267,44 @@ jobs:
           } > "$body"
           gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
 
+      - name: Run summary (job summary + summary.md; on failure, why)
+        if: always()
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+          CHANGE: ${{ steps.m.outputs.change }}
+          CLAUDE_MODEL: ${{ steps.m.outputs.model }}
+          MODE: ${{ steps.mode.outputs.mode }}
+          ITEMS: ${{ steps.mode.outputs.feedback_items }}
+        run: |
+          mkdir -p .openspec-ci/runs
+          if [[ -x "${CI_SCRIPTS:-}/run-summary.sh" ]]; then
+            "$CI_SCRIPTS"/run-summary.sh "${MODE:-apply}" "${MODE:-apply}: PR #$PR" \
+              change="$CHANGE" "review feedback items=$ITEMS" > .openspec-ci/runs/summary.md
+          else
+            # Failed before the trusted scripts were stashed (e.g. Resolve PR).
+            { echo "### OpenSpec ${MODE:-apply}: PR #$PR"; echo "**Result: ❌ failed** before checkout"; echo
+              sed 's/^::error::/- /' "$RUNNER_TEMP/openspec-ci-failures.txt" 2>/dev/null || true
+            } > .openspec-ci/runs/summary.md
+          fi
+          cat .openspec-ci/runs/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on failure (apply and reapply)
+        # Only once the PR is known to be an open openspec/task-N PR; never for a skipped job.
+        if: failure() && steps.pr.outputs.head != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PUSH_OUTCOME: ${{ steps.push.outcome }}
+        run: |
+          body="$RUNNER_TEMP/failure-comment.md"
+          if [[ "$PUSH_OUTCOME" == failure ]]; then pushed="It failed while committing, pushing or commenting: check the branch."
+          else pushed="Nothing was pushed."; fi
+          { sed '1s/^### /## ❌ /' .openspec-ci/runs/summary.md
+            printf '\n---\n%s [Run log and artifact](%s).\n' "$pushed" "$RUN_URL"
+            printf 'To retry, comment `/reapply <what to change>` (the text is the feedback) or run `gh workflow run "OpenSpec Apply" -f pr=%s`.\n' "$PR"
+          } > "$body"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+
       - name: Upload agent output
         if: always()
         uses: actions/upload-artifact@v7
@@ -259,26 +312,3 @@ jobs:
           name: openspec-apply-pr${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .openspec-ci/runs/
           if-no-files-found: ignore
-
-      - name: Job summary
-        if: always()
-        env:
-          CHANGE: ${{ steps.m.outputs.change }}
-          MODEL: ${{ steps.m.outputs.model }}
-          MODE: ${{ steps.mode.outputs.mode }}
-          ITEMS: ${{ steps.mode.outputs.feedback_items }}
-        run: |
-          {
-            echo "### OpenSpec ${MODE:-apply}: PR #$PR"
-            echo "- change: ${CHANGE:-n/a}"
-            echo "- review feedback items: ${ITEMS:-n/a}"
-            if [[ -s .openspec-ci/runs/spec-impact.txt ]]; then
-              echo "- **spec impact:** $(paste -sd, .openspec-ci/runs/spec-impact.txt)"
-            fi
-            out=".openspec-ci/runs/${MODE:-apply}.json"
-            if [[ -f "$out" ]]; then
-              jq -r --arg req "$MODEL" '"- model: \(.modelUsage // {} | keys | join(", ")) (requested: \($req))",
-                     "- turns: \(.num_turns // "?"), cost_usd: \(.total_cost_usd // "?"), denials: \(.permission_denials // [] | length)"' \
-                "$out" || true
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"

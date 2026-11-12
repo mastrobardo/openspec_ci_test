@@ -58,31 +58,34 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REVIEW_SHA: ${{ github.event.review.commit_id }}
         run: |
-          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number"; exit 1; }
+          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
             --json headRefName,headRefOid,isCrossRepository,isDraft,state)"
           head="$(jq -r .headRefName <<<"$info")"
           sha="$(jq -r .headRefOid <<<"$info")"
-          [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N"; exit 1; }
-          [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported"; exit 1; }
-          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open"; exit 1; }
-          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft"; exit 1; }
+          [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           if [[ "$GITHUB_EVENT_NAME" == pull_request_review && "$REVIEW_SHA" != "$sha" ]]; then
-            echo "::error::approval is stale: it was for ${REVIEW_SHA:0:7} but the PR head is ${sha:0:7}. Re-approve."
+            echo "::error::approval is stale: it was for ${REVIEW_SHA:0:7} but the PR head is ${sha:0:7}. Re-approve." | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"
             exit 1
           fi
           echo "head=$head" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout workflow commit (trusted scripts)
+        id: checkout_scripts
         uses: actions/checkout@v7
 
       - name: Stash trusted scripts outside the workspace
+        id: stash_scripts
         run: |
           cp -R scripts "$RUNNER_TEMP/ci-scripts"
           echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
 
       - name: Checkout PR head (the work)
+        id: checkout_pr
         uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr.outputs.sha }}   # exactly the commit being verified
@@ -91,12 +94,12 @@ jobs:
         id: m
         run: |
           m=.openspec-ci/manifest.json
-          [[ -f "$m" ]] || { echo "::error::$m missing"; exit 1; }
+          [[ -f "$m" ]] || { echo "::error::$m missing" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           task="$(jq -r '.task // empty' "$m")"
           stage="$(jq -r '.stage // empty' "$m")"
-          [[ "$stage" != archived ]] || { echo "::error::already archived; nothing to verify"; exit 1; }
+          [[ "$stage" != archived ]] || { echo "::error::already archived; nothing to verify" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$stage" == apply || "$stage" == reapply ]] \
-            || { echo "::error::nothing to verify: manifest stage is '$stage' (run Apply first)"; exit 1; }
+            || { echo "::error::nothing to verify: manifest stage is '$stage' (run Apply first)" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           model="$(jq -r '.model // empty' "$m")"
           if [[ -z "$model" ]]; then
             model="$(jq -r '.plan_model // empty' "$m")"
@@ -107,26 +110,30 @@ jobs:
           echo "model=$model" >> "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@v6
+        id: setup_pnpm
         with:
           version: 10
 
       - uses: actions/setup-node@v7
+        id: setup_node
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies and tools
+        id: install
         run: |
           pnpm install --frozen-lockfile
           npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
 
       - name: Deterministic checks (change, validate, tasks)
+        id: precheck
         env:
           TASK: ${{ steps.m.outputs.task }}
           CHANGE: ${{ steps.m.outputs.change }}
         run: |
           found="$("$CI_SCRIPTS"/openspec-ops.sh change-id "$TASK")"
-          [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'"; exit 1; }
+          [[ "$found" == "$CHANGE" ]] || { echo "::error::manifest change '$CHANGE' != openspec change '$found'" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           "$CI_SCRIPTS"/openspec-ops.sh validate "$CHANGE"
           "$CI_SCRIPTS"/openspec-ops.sh tasks-complete "$CHANGE"
 
@@ -152,12 +159,14 @@ jobs:
           echo "verdict=$verdict (run-agent exit $rc)"
 
       - name: Guard - verify changed nothing
+        id: guard
         env:
           CHANGE: ${{ steps.m.outputs.change }}
           SHA: ${{ steps.pr.outputs.sha }}
         run: '"$CI_SCRIPTS"/openspec-ops.sh guard-diff verify "$CHANGE" "$SHA"'
 
       - name: Post verdict
+        id: post_verdict
         if: always() && steps.agent.outputs.verdict != ''
         env:
           GH_TOKEN: ${{ github.token }}
@@ -180,10 +189,31 @@ jobs:
           gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
 
       - name: Fail unless PASS
+        id: verdict_gate
         env:
           VERDICT: ${{ steps.agent.outputs.verdict }}
         run: |
-          [[ "$VERDICT" == PASS ]] || { echo "::error::verify verdict: $VERDICT"; exit 1; }
+          [[ "$VERDICT" == PASS ]] || { echo "::error::verify verdict: $VERDICT" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+
+      - name: Run summary (job summary + summary.md; on failure, why)
+        if: always()
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+          CHANGE: ${{ steps.m.outputs.change }}
+          CLAUDE_MODEL: ${{ steps.m.outputs.model }}
+          VERDICT: ${{ steps.agent.outputs.verdict }}
+          SHA: ${{ steps.pr.outputs.sha }}
+        run: |
+          mkdir -p .openspec-ci/runs
+          if [[ -x "${CI_SCRIPTS:-}/run-summary.sh" ]]; then
+            "$CI_SCRIPTS"/run-summary.sh verify "Verify: PR #$PR" change="$CHANGE @ ${SHA:0:7}" \
+              "verdict=${VERDICT:-not reached}" > .openspec-ci/runs/summary.md
+          else
+            { echo "### OpenSpec Verify: PR #$PR"; echo "**Result: ❌ failed** before checkout"; echo
+              sed 's/^::error::/- /' "$RUNNER_TEMP/openspec-ci-failures.txt" 2>/dev/null || true
+            } > .openspec-ci/runs/summary.md
+          fi
+          cat .openspec-ci/runs/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload agent output
         if: always()
@@ -192,25 +222,6 @@ jobs:
           name: openspec-verify-pr${{ github.event.pull_request.number || inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .openspec-ci/runs/
           if-no-files-found: ignore
-
-      - name: Job summary
-        if: always()
-        env:
-          CHANGE: ${{ steps.m.outputs.change }}
-          MODEL: ${{ steps.m.outputs.model }}
-          VERDICT: ${{ steps.agent.outputs.verdict }}
-          SHA: ${{ steps.pr.outputs.sha }}
-        run: |
-          {
-            echo "### OpenSpec Verify: PR #$PR"
-            echo "- change: ${CHANGE:-n/a} @ ${SHA:0:7}"
-            echo "- verdict: **${VERDICT:-not reached}**"
-            if [[ -f .openspec-ci/runs/verify.json ]]; then
-              jq -r --arg req "$MODEL" '"- model: \(.modelUsage // {} | keys | join(", ")) (requested: \($req))",
-                     "- turns: \(.num_turns // "?"), cost_usd: \(.total_cost_usd // "?"), denials: \(.permission_denials // [] | length)"' \
-                .openspec-ci/runs/verify.json || true
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
 
   archive:
     needs: verify
@@ -232,42 +243,49 @@ jobs:
       CHANGE: ${{ needs.verify.outputs.change }}
     steps:
       - name: Check the PR has not moved since verify
+        id: moved
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,state,isDraft)"
-          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open"; exit 1; }
-          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is a draft"; exit 1; }
+          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is a draft" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           now="$(jq -r .headRefOid <<<"$info")"
           [[ "$now" == "$VERIFIED_SHA" ]] || {
-            echo "::error::verified sha ${VERIFIED_SHA:0:7} is stale (head is now ${now:0:7}); re-verify"; exit 1; }
+            echo "::error::verified sha ${VERIFIED_SHA:0:7} is stale (head is now ${now:0:7}); re-verify" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           echo "archived_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Checkout workflow commit (trusted scripts)
+        id: checkout_scripts
         uses: actions/checkout@v7
 
       - name: Stash trusted scripts outside the workspace
+        id: stash_scripts
         run: |
           cp -R scripts "$RUNNER_TEMP/ci-scripts"
           echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
 
       - name: Checkout PR branch (the work)
+        id: checkout_pr
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.verify.outputs.head }}
 
       - name: Confirm checkout is the verified commit
+        id: confirm
         run: |
           [[ "$(git rev-parse HEAD)" == "$VERIFIED_SHA" ]] \
-            || { echo "::error::branch moved during checkout; re-verify"; exit 1; }
+            || { echo "::error::branch moved during checkout; re-verify" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           stage="$(jq -r '.stage // empty' .openspec-ci/manifest.json)"
-          [[ "$stage" == apply || "$stage" == reapply ]] || { echo "::error::manifest stage '$stage' cannot be archived"; exit 1; }
+          [[ "$stage" == apply || "$stage" == reapply ]] || { echo "::error::manifest stage '$stage' cannot be archived" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
 
       - uses: actions/setup-node@v7
+        id: setup_node
         with:
           node-version: 22
 
       - name: Install OpenSpec
+        id: install
         run: npm install -g @fission-ai/openspec@1.14.1
 
       - name: Archive change and validate main specs
@@ -277,7 +295,7 @@ jobs:
           openspec archive -y "$CHANGE"
           archived="$(find openspec/changes/archive -mindepth 1 -maxdepth 1 -type d -name "*-$CHANGE" \
                       | sed 's|.*/||' | sort | tail -1)"
-          [[ -n "$archived" && ! -d "openspec/changes/$CHANGE" ]] || { echo "::error::archive did not move the change"; exit 1; }
+          [[ -n "$archived" && ! -d "openspec/changes/$CHANGE" ]] || { echo "::error::archive did not move the change" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           openspec validate --all --strict --no-interactive
           specs="$(git status --porcelain --untracked-files=all -- openspec/specs | sed 's/^...//' \
                    | awk -F/ '{print $3}' | sort -u | paste -sd, -)"
@@ -285,9 +303,11 @@ jobs:
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
 
       - name: Guard - archive changed only openspec/
+        id: guard
         run: '"$CI_SCRIPTS"/openspec-ops.sh guard-plan-diff'
 
       - name: Write manifest, commit, push and comment
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
           ARCHIVED: ${{ steps.archive.outputs.archived }}
@@ -315,3 +335,16 @@ jobs:
             echo "- archived as: $ARCHIVED"
             echo "- main specs: ${SPECS:-none}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run summary on failure
+        if: failure()
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
+        run: |
+          if [[ -x "${CI_SCRIPTS:-}/run-summary.sh" ]]; then
+            "$CI_SCRIPTS"/run-summary.sh archive "Archive: PR #$PR" change="$CHANGE" >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo "### OpenSpec Archive: PR #$PR"; echo "**Result: ❌ failed** before checkout"; echo
+              sed 's/^::error::/- /' "$RUNNER_TEMP/openspec-ci-failures.txt" 2>/dev/null || true
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

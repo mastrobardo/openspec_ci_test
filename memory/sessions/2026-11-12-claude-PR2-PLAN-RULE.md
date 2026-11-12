@@ -13,3 +13,19 @@
   (§3b PR #2 run log, problem row), `docs/PROGRESS.md` (row 12, next action; README becomes 021).
 - Skills: `debugging-and-error-recovery` (root cause from the run artifact: result text +
   `permission_denials`); `documentation-and-adrs` listed for the README (not used yet).
+
+## 021: failure-aware run summary (user request after 020)
+- User: the job summary (model, turns, cost, denials) is fine for a pass but says nothing about why
+  a run failed. Agreed: shared `scripts/run-summary.sh` for all stages; PR comment on failure for
+  Apply and re-apply only (Verify already comments its verdict).
+- Built: `run-summary.sh`; `record`/`detail` in `openspec-ops.sh` and `run-agent.sh`; inline
+  `::error::` lines `tee -a` the same file; step ids everywhere; build/lint → `build.log`; summary
+  step before upload (`summary.md` in the artifact); "Comment on failure" step in Apply; archive
+  job gets a failure summary.
+- Tested locally: real `apply.json` from run 43172704001 + the real `tasks-complete` failure
+  reproduce the expected block (failed step, unticked line, Deviations, both denials); synthetic
+  Verify FAIL, agent `is_error`, build failure, early inline failure; ops exit codes unchanged.
+  YAML parse, `bash -n` per `run:`, no `${{ }}` in `run:`, actionlint (only old style notes).
+- Skills: `ci-cd-and-automation` (workflow changes), `test-driven-development` not used formally
+  (scenario tests with real run data instead).
+

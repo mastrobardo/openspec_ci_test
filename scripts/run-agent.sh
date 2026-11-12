@@ -11,6 +11,8 @@
 #   CLAUDE_MODEL             optional model override
 #   OPENSPEC_CI_OUT          output dir (default .openspec-ci/runs)
 #   OPENSPEC_CI_FEEDBACK     reapply only: review feedback file (scripts/pr-feedback.sh output)
+#   OPENSPEC_CI_FAILURES     file that collects failure reasons for scripts/run-summary.sh
+#                            (default $RUNNER_TEMP/openspec-ci-failures.txt in CI, unset locally)
 # Outputs (in $OPENSPEC_CI_OUT)
 #   <stage>.json   raw `claude --output-format json` result (cost, turns, session id)
 #   <stage>.md     the agent's final message (report)
@@ -25,7 +27,9 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
-die() { echo "run-agent: $*" >&2; exit 1; }
+failures="${OPENSPEC_CI_FAILURES:-${RUNNER_TEMP:+$RUNNER_TEMP/openspec-ci-failures.txt}}"
+record() { [[ -n "$failures" ]] && printf '%s\n' "$@" >> "$failures"; return 0; }
+die() { echo "run-agent: $*" >&2; record "run-agent $stage: $*"; exit 1; }
 
 [[ "$stage" =~ ^(plan|apply|reapply|verify)$ ]] || die "stage must be plan|apply|reapply|verify"
 [[ "$task_id" =~ ^task-[0-9]+$ ]] || die "task-id must look like task-N"
@@ -84,6 +88,7 @@ jq -r '"run-agent: turns=\(.num_turns // "?") cost_usd=\(.total_cost_usd // "?")
 
 if [[ $rc -ne 0 ]] || [[ "$(jq -r '.is_error // false' "$out/$stage.json" 2>/dev/null)" == true ]]; then
   echo "run-agent: agent failed (exit $rc)" >&2
+  record "run-agent $stage: agent failed (claude exit $rc, is_error=$(jq -r '.is_error // "?"' "$out/$stage.json" 2>/dev/null || echo '?'))"
   exit 2
 fi
 
@@ -91,6 +96,7 @@ if [[ "$stage" == verify ]]; then
   # `|| true`: no match must mean "missing verdict" (exit 4), not a pipefail abort (exit 1).
   verdict="$( { grep -Eo 'VERDICT: (PASS|FAIL|INCONCLUSIVE)' "$out/verify.md" || true; } | tail -1 | cut -d' ' -f2)"
   echo "run-agent: verdict=${verdict:-missing}" >&2
+  [[ "$verdict" == PASS ]] || record "run-agent verify: verdict ${verdict:-missing} (see ## Issues in verify.md)"
   case "$verdict" in
     PASS) exit 0 ;;
     FAIL) exit 3 ;;

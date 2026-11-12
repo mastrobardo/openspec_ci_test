@@ -22,6 +22,9 @@
 #                              '## Scope changes from review' section with '- F<n>' entries (D12)
 #   manifest <key=value>...    create/merge .openspec-ci/manifest.json (sets created_at once,
 #                              updated_at always)
+# Env
+#   OPENSPEC_CI_FAILURES  file that collects failure reasons for scripts/run-summary.sh
+#                         (default $RUNNER_TEMP/openspec-ci-failures.txt in CI, unset locally)
 # Exit codes
 #   0 ok | 1 usage/setup error | 2 check failed
 set -euo pipefail
@@ -29,8 +32,12 @@ set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
-die()  { echo "openspec-ops: $*" >&2; exit 1; }
-fail() { echo "openspec-ops: FAIL: $*" >&2; exit 2; }
+failures="${OPENSPEC_CI_FAILURES:-${RUNNER_TEMP:+$RUNNER_TEMP/openspec-ci-failures.txt}}"
+record() { [[ -n "$failures" ]] && printf '%s\n' "$@" >> "$failures"; return 0; }
+# detail: evidence lines for the next fail (stderr + failures file, indented).
+detail() { echo "$1" >&2; record "$(sed 's/^/    /' <<<"$1")"; }
+die()  { echo "openspec-ops: $*" >&2; record "openspec-ops ${command:-}: $*"; exit 1; }
+fail() { echo "openspec-ops: FAIL: $*" >&2; record "openspec-ops ${command:-}: FAIL: $*"; exit 2; }
 need() { command -v "$1" >/dev/null || die "$1 not installed"; }
 
 valid_change_id() { [[ "$1" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid change-id: '$1'"; }
@@ -63,8 +70,11 @@ cmd_tasks_complete() {
   local open
   open="$(grep -nE '^[[:space:]]*- \[ \]' "$file" || true)"
   if [[ -n "$open" ]]; then
-    echo "$open" >&2
-    fail "$(grep -c . <<<"$open") unticked task(s) in $file"
+    fail_open="$(grep -c . <<<"$open") unticked task(s) in $file"
+    record "openspec-ops tasks-complete: FAIL: $fail_open"
+    detail "$open"
+    echo "openspec-ops: FAIL: $fail_open" >&2
+    exit 2
   fi
   grep -qE '^[[:space:]]*- \[[xX]\]' "$file" || fail "no tasks found in $file"
   echo "openspec-ops: all tasks complete in $file" >&2
@@ -80,8 +90,10 @@ cmd_guard_plan_diff() {
   local outside
   outside="$(grep -v '^$' <<<"$paths" | sort -u | grep -vE '^(openspec/|\.openspec-ci/)' || true)"
   if [[ -n "$outside" ]]; then
-    echo "$outside" >&2
-    fail "planning touched files outside openspec/"
+    record "openspec-ops guard-plan-diff: FAIL: planning touched files outside openspec/"
+    detail "$outside"
+    echo "openspec-ops: FAIL: planning touched files outside openspec/" >&2
+    exit 2
   fi
   echo "openspec-ops: plan diff is confined to openspec/" >&2
 }
@@ -108,8 +120,10 @@ cmd_guard_diff() {
   done <<<"$paths"
 
   if [[ ${#bad[@]} -gt 0 ]]; then
-    printf '%s\n' "${bad[@]}" >&2
-    fail "$mode touched files it must not change"
+    record "openspec-ops guard-diff: FAIL: $mode touched files it must not change"
+    detail "$(printf '%s\n' "${bad[@]}")"
+    echo "openspec-ops: FAIL: $mode touched files it must not change" >&2
+    exit 2
   fi
   [[ ${#impact[@]} -gt 0 ]] && printf '%s\n' "${impact[@]}"
   echo "openspec-ops: $mode diff OK ($(grep -c . <<<"$paths" || true) files, ${#impact[@]} artifact changes)" >&2
@@ -130,8 +144,11 @@ cmd_scope_documented() {
   entries="$(awk '/^## Scope changes from review[[:space:]]*$/ {f=1; next} /^## / {f=0}
                   f && /^- F[0-9]+/ {n++} END {print n+0}' "$file")"
   if [[ "$entries" -eq 0 ]]; then
-    echo "$requirement" >&2
-    fail "proposal/specs changed but $file has no '## Scope changes from review' section with '- F<n>' entries"
+    local msg="proposal/specs changed but $file has no '## Scope changes from review' section with '- F<n>' entries"
+    record "openspec-ops scope-documented: FAIL: $msg"
+    detail "$requirement"
+    echo "openspec-ops: FAIL: $msg" >&2
+    exit 2
   fi
   echo "openspec-ops: scope changes documented ($entries entr$( [[ $entries -eq 1 ]] && echo y || echo ies))" >&2
 }

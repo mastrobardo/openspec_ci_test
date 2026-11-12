@@ -25,7 +25,7 @@ archive (human approval) → squash merge `2362212` at 23:01Z. **Complete lifecy
 
 Layers (D6): workflows orchestrate only; `scripts/run-agent.sh` (agent adapter, per-stage tool
 allowlist), `scripts/prompts/*.md` (stage prompts), `scripts/openspec-ops.sh` (deterministic checks),
-`scripts/pr-feedback.sh` (review feedback). Audit trail: `.openspec-ci/manifest.json` on the PR branch,
+`scripts/pr-feedback.sh` (review feedback), `scripts/run-summary.sh` (run summary: on failure the failed step, the recorded reason, the agent's own explanation, permission denials, build/lint tail; 021). Audit trail: `.openspec-ci/manifest.json` on the PR branch,
 plus a per-run artifact (`<stage>.json` with turns, cost, model, denials).
 
 ## 3. Run log, PR #1 (UTC, 2026-11-11)
@@ -67,6 +67,7 @@ CI: 21–41 turns on Fable ($0.46–1.92). Every CI run used `claude-sonnet-5-5`
 | Time | Run | Stage / event | Result | Agent stats |
 |---|---|---|---|---|
 | 07:05 | 43172704001 | Apply ("Ready for review") | ❌ `tasks-complete`: task 2.2 (browser check) unticked; 2 permission denials (`pnpm preview` in background, `vite build --outDir /tmp`); guards, build, lint OK | 28 turns, $0.36 |
+| 07:15 | 43173962826 | `/reapply` (reword 2.2 to the CI-runnable `dist/` check) | ✅ F1 = implementation; 2.2 reworded and ticked, design.md Risks line aligned (spec impact: `design.md`), browser check became a reviewer note; `<h1>` edit redone | 33 turns, $0.41, 0 denials |
 
 ## 4. Decisions (full table in docs/PLAN.md)
 D1 POC in this repo · D2 tasks as text files (stand-in for Jira) · D3 subscription token
@@ -104,6 +105,10 @@ merges (PR title + body).
   `run:`).
 - Review feedback only from OWNER/MEMBER/COLLABORATOR and never bots; the prompt treats it as data,
   not instructions; same-repo `openspec/task-N` branches only.
+- Failures explain themselves (021): every check (`openspec-ops.sh`, `run-agent.sh`, inline
+  `::error::`) appends its reason to `$RUNNER_TEMP/openspec-ci-failures.txt`; the run summary
+  (job summary + `summary.md` in the artifact) shows it with the agent's Deviations/Issues and
+  denials; a failed Apply/re-apply also posts it as a PR comment.
 - Explicit workflow `permissions:` (repo default read); Verify has `contents: read`; stale-approval
   check; archive behind a required-reviewer environment.
 
@@ -112,6 +117,7 @@ merges (PR title + body).
   structure.
 - PR-event workflows depend on the merge ref: keep a dispatch fallback or trigger from main.
 - Before blaming code, re-run a known-good commit and check githubstatus.com; let queued runs finish.
+- A failed run must say why where people look (job summary, PR comment), not only in the step log.
 - Make every stage produce an audit trail (manifest, artifacts, PR comments with run links).
 - Cost is small per stage (~$0.10–0.20 notional on Sonnet); review rounds dominate.
 
