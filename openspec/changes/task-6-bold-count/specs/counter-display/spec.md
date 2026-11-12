@@ -4,7 +4,7 @@ Makes the number on the main page counter button stand out so users can read the
 ## ADDED Requirements
 
 ### Requirement: Count number is wrapped in strong
-The main page counter button SHALL render its number inside a `<strong>` element, so the markup reads "Count is <strong>N</strong>".
+The main page counter button SHALL render its number inside a `<strong>` element, so the markup reads "Clicks: <strong>N</strong>".
 
 #### Scenario: Number in strong element
 - **WHEN** the main page is rendered with the count at 3
@@ -15,11 +15,11 @@ The main page counter button SHALL render its number inside a `<strong>` element
 - **THEN** the `<strong>` element inside it shows the new count
 
 ### Requirement: Rest of the button is unchanged
-Only the number SHALL be inside the `<strong>` element. The button's overall text content MUST remain "Count is N", the words "Count is" MUST NOT be inside `<strong>`, no CSS rule is added, and the Reset button MUST NOT change.
+Only the number SHALL be inside the `<strong>` element. The button's overall text content MUST remain "Clicks: N", the word "Clicks:" MUST NOT be inside `<strong>`, no CSS rule is added, and the Reset button MUST NOT change.
 
 #### Scenario: Text preserved
 - **WHEN** the main page is rendered with the count at 3
-- **THEN** the counter button's text content is "Count is 3" and "Count is" is outside any `<strong>` element
+- **THEN** the counter button's text content is "Clicks: 3" and "Clicks:" is outside any `<strong>` element
 
 #### Scenario: Reset button and styles untouched
 - **WHEN** the change is applied
