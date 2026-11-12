@@ -98,3 +98,10 @@
 - Events: draft review → comment, no dispatch (`pull-requests: write`); passes `label` = PR title.
   run-name on Plan/Apply/Verify/Events/Sync; Sync matrix → `{pr, title}`, job `sync PR #N · title`.
 
+## 030: resolve path proven; run recorded
+- User ran PRs #5–#7 by hand: stale approval on #6 (approved during Apply), re-approve → PASS →
+  merge → Sync 43215203954: PR #7 conflict → resolve agent (`Clicks: <strong>{count}</strong>`,
+  own delta rebased to "Clicks:"), PR #5 clean. Both re-approved → PASS → archived → merged.
+- Race: PR #5 merged 13 s after #7 while Sync was listing → "PR #5 is not open" (red, harmless).
+- Totals: 10 agent runs, 162 turns, $1.17; main healthy (build, lint, validate --all 6 specs).
+

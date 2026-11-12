@@ -103,14 +103,30 @@ PR #4 merged and needed a manual merge. GitHub's merge queue only re-tests; it n
 | 11:41 | 43211365893 → 43211377895 | Approve on PR #6 **while still a draft** (GitHub allows it) → trampoline → Verify | ❌ Verify refused in its first step (`PR #6 is still a draft`), $0; first real failure through the 021 summary (`Result: ❌ failed before checkout`), but nothing on the PR → 029 | – |
 | 11:42 | 43211430833 / 43211444437 → Applies | Ready for review ×2 | dispatched Apply ×2 (running) | – |
 
-Pending (user drives by hand): Ready ×3 → merge task-5 → Sync should send PR #7 (task-6, same line
-in `src/App.tsx`) through the **resolve** agent and keep PR #5 (task-7) on the clean path.
+| 11:42–11:44 | 43211446083 / 43211454932 / 43211697717 | Apply ×3 (dispatched; run in parallel) | ✅ PR #7, #5, #6 implemented | 16 turns $0.13 / 21 turns $0.12 (1 denial) / 23 turns $0.14 |
+| 11:44 | 43211725745 → 43211737626 | Approve PR #6 **while its Apply was still running** | ❌ Verify refused: `approval is stale: it was for 37363df but the PR head is 66fac82` (Verify waited in the per-PR queue behind Apply, which then pushed) — correct guard, no PR message (→ 029 idea for Verify) | – |
+| 11:47 | 43212123571 | Sync on the push of 029 | ✅ clean merges into the 3 PRs (run names now show the task) | – |
+| 11:58 | 43213660459 → 43213672400 | Re-approve PR #6 (task-5) | ✅ Verify PASS incl. spec preflight (task-5's MODIFIED deltas apply to main) → gate → archive | 15 turns $0.11 |
+| 12:08 | – | **Squash merge PR #6 (task-5)** → `83feb09` | ✅ | – |
+| 12:08 | **43215203954** | **Sync on that merge** | ✅ `sync PR #7 · task-6`: **conflict on `src/App.tsx` → resolve agent** (1 m 41 s): code `Clicks: <strong>{count}</strong>` (both sides kept); the agent saw that "Count is" no longer exists on main and **rebased its own change** (counter-display delta, tasks, design, proposal) to "Clicks:", listed under Spec impact; guard-resolve + spec preflight + build/lint passed. `sync PR #5 · task-7`: clean, no agent (29 s) | resolve: 23 turns $0.13, 1 denial (`sed -i` across 3 files; redone with Edit) |
+| 12:14 / 12:16 | 43216114697 / 43216375695 | Re-approve PR #7 and PR #5 | ✅ Verify PASS ×2. On PR #7 Verify judged the task's "Count is" vs "Clicks:" difference as coming from main (task-5), not scope creep — model judgment, not a rule | 11 turns $0.10 / 11 turns $0.11 |
+| 14:31 | same runs | gates approved ×2 | ✅ archived (15 s each) | – |
+| 14:33:12 / 14:33:25 | – | Squash merge PR #7 → `6abbfbc`, PR #5 → `ece4288` (13 s apart) | ✅ main: build, lint, `validate --all --strict` (6 specs) all pass | – |
+| 14:33 | 43238381114 | Sync on PR #7's merge | ❌ `find` saw PR #5 open; the user merged it 10 s later, so `sync PR #5` refused "PR #5 is not open" (race; harmless, red run) | – |
+| 14:33 | 43238420152 | Sync on PR #5's merge | ✅ nothing behind main | – |
+
+Run total (PRs #5–#7, sonnet): 10 agent runs, 162 turns, **$1.17 notional**; the agent ran for one of
+five PR syncs. PR #5 was merged without a sync onto PR #7's merge: safe here (no overlap), but
+nothing enforces it; GitHub branch protection "Require branches to be up to date before merging"
+would block the merge until Sync has pushed.
 
 Slide points:
 - Sync is event-driven from `main` (push), so it never runs a stale workflow; its own pushes use
   `GITHUB_TOKEN` and cannot trigger it again (no loop).
 - Cost scales with conflicts, not with PRs: a clean sync is deterministic and free; the agent
   runs only for a conflicted PR, and its edits are fenced by `guard-resolve`.
+- The agent resolves meaning, not just text: on PR #7 it combined `Clicks:` + `<strong>` and
+  rewrote its own delta specs to match main's updated specs, inside `guard-resolve`'s fence.
 - Correctness beyond text: `spec-preflight` archives the change into a scratch copy of the
   updated main specs, so a delta that no longer applies fails here, not at the archive gate.
 - The human gate is preserved: the sync push makes approvals stale; re-approve → Verify.
@@ -144,6 +160,8 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
 | Second parallel PR conflicts (PR #3 after #4) | GitHub "conflicts" on `.openspec-ci/manifest.json` only | every branch wrote the same manifest path; each squash merge put one task's manifest on main | per-task `.openspec-ci/manifests/<task>.json`; PR #3 unblocked by a manual merge (keep ours); Sync stage for real conflicts (026) |
 | Approval on a draft PR (PR #6) | a red Verify run, no message on the PR | GitHub accepts reviews on drafts; the trampoline dispatched blindly | Events ignores reviews on drafts and comments "mark it Ready for review first" (029) |
 | Runs hard to tell apart | every dispatched run was titled "OpenSpec Apply"/"OpenSpec Verify" | dispatches carry only `pr` | `run-name` on every workflow; the trampoline passes the PR title as `label`; Sync jobs are named `sync PR #N · <title>` (029) |
+| Approval while Apply is still running (PR #6) | Verify ❌ "approval is stale" | the approval was for the pre-Apply head; Verify queued behind Apply | correct guard; approve after Apply's report comment. Idea: Verify posts early failures on the PR |
+| Merge during a Sync (PR #5, 13 s after PR #7) | Sync job ❌ "PR #5 is not open" | `find` listed the PR, the user merged it before the job started | proposed: a closed PR is a quiet skip; branch protection "up to date before merging" |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -164,6 +182,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   check; archive behind a required-reviewer environment.
 
 ## 7. Lessons (for the closing slide)
+- Fast human merges race the automation: enforce "up to date before merging" so Sync always runs between merges.
 - Parallel work needs a sync stage: merge main into every open PR after each merge, deterministic when clean, agent only on conflict, guarded, and re-gated by a human.
 - Gate agents with human PR actions plus deterministic checks; use the LLM for judgment, scripts for
   structure.
@@ -188,6 +207,6 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   (`/reapply` and the 015 scope check are proven: run 43114321202.)
 - Proven on PR #3/#4: the 024 trampoline (Ready, Approve), the 020 plan rule, the 021 summary (passing runs),
   the 022 full-history Verify checkout, parallel PRs. Proven on PRs #5–#7: the 025 Purpose rule at Plan, the 026 Sync clean path (3 PRs in parallel,
-  no agent). Not yet on GitHub: the 021 failure comment (task-11 should trigger it), the 026 resolve
-  path (task-5 merge → PR #7), the spec-preflight failing case.
+  no agent) and the **resolve path** (PR #7, run 43215203954), the 029 run names. Not yet on GitHub: the
+  021 failure comment (task-11 should trigger it), the spec-preflight failing case, the 029 draft comment.
 - The Fable model in CI (Opus: PR #2; Sonnet: PR #1, #3, #4).
