@@ -107,6 +107,9 @@ Steps 3 and 4 can also be done through the API (`gh api -X PUT repos/<owner>/<re
 
 Notes:
 
+- **Run names.** Every run is titled with its stage and task, e.g. `Apply · OpenSpec: task-5-counter-button-label`,
+  `Verify · …`, `Plan · task-5 (sonnet)`, `sync PR #7 · …`. A review on a **draft** PR does nothing except post a
+  comment asking you to mark it Ready for review first.
 - **How PR actions start a stage.** `openspec-events.yml` receives the PR event and runs
   `gh workflow run` for Apply or Verify on `main`, passing `pr`, the `mode`, or the approved sha. The real
   workflows therefore always run the current version from `main`. A PR event alone would run them from

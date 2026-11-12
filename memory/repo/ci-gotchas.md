@@ -144,4 +144,10 @@ Learned testing Apply on PR #1 (2026-11-11):
   scratch copy to catch the first case early.
 - The sync workflow runs on `push` to main. Pushes made with `GITHUB_TOKEN` (the sync's own merge
   commits on PR branches) do not trigger workflows, so there is no loop.
+- GitHub accepts Approve / Request changes on a **draft** PR. The trampoline used to dispatch
+  Verify anyway (refused: "still a draft", PR #6 run 43211377895). Events now skips drafts and
+  comments instead (029). The Events workflow itself runs from the merge ref, so an open PR only
+  gets the new Events after its merge ref is rebuilt (a Sync push does that).
+- `run-name:` can use `inputs`, `github.event` and `format()`; actionlint type-checks it. A dispatch
+  carries only its inputs, so the caller passes a display-only `label` (the PR title).
 
