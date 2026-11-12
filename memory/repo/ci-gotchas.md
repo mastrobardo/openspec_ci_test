@@ -121,4 +121,9 @@ Learned testing Apply on PR #1 (2026-11-11):
   on PR #2 could not diff the PR against `main` (denied `git fetch --depth=2 origin main`). Verify
   now checks out with `fetch-depth: 0` (all branches, so `origin/main` exists) and the prompt names
   `git diff origin/main...HEAD` (022).
+- Trampoline built (024): `openspec-events.yml` (PR events, `actions: write`) runs
+  `gh workflow run … --ref <default branch>`; Apply/Verify keep only `workflow_dispatch` (+
+  `issue_comment`). A dispatch made with `GITHUB_TOKEN` is the documented exception that does start a
+  run. The approval sha (`review.commit_id`) is passed as `approved_sha`, because a dispatched run has
+  no review payload. The trampoline itself still runs from the merge ref: keep it stable.
 

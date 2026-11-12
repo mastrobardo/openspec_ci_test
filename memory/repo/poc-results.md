@@ -86,21 +86,21 @@ sonnet/opus/fable) · D10 re-apply on Request changes, commenter filter · D11 t
 feedback; requirement → `/opsx:update` + Spec impact · D12 the amended change is the source of truth;
 scope changes must be documented in `## Scope changes from review`, else Verify FAILs · D13 archive
 as a separate Verify job behind the `openspec-archive` environment (manual approval) · D14 squash-only
-merges (PR title + body).
+merges (PR title + body) · D15 PR events only dispatch the stage workflows on main (trampoline).
 
 ## 5. Problems found and fixes (good slide material)
 | Problem | Symptom | Root cause | Fix (commit) |
 |---|---|---|---|
 | Token line break | 1 turn, $0, "Invalid Authorization header" | `setup-token` output wrapped when pasted | `tr -d` when setting the secret; run-agent rejects whitespace (008) |
 | Local hooks leaking into `claude -p` | every Bash call denied | user-level `rtk` hook and chained commands | `--setting-sources project`; prompts say one command per call (004) |
-| PR events start nothing | no run, no error | PR workflows come from the merge ref, rebuilt lazily | dispatch `pr=N` fallback; `/reapply` runs from main (016) |
+| PR events start nothing | no run, no error | PR workflows come from the merge ref, rebuilt lazily | dispatch `pr=N` fallback; `/reapply` runs from main (016); trampoline `openspec-events.yml` dispatches every stage on main (024) |
 | GitHub outage | `startup_failure`, uncancellable "queued" runs | GitHub incident 20:20–21:05Z | proven with a byte-identical known-good commit; wait it out |
 | Scripts older than the workflow | `pr-feedback.sh: No such file` | scripts ran from the PR branch | trusted scripts from the workflow commit (`$CI_SCRIPTS`), also a security fix (012) |
 | Verify FAIL on a reviewer-approved scope change | SHA "out of scope" per the ticket | no source-of-truth rule | D12 (014) |
 | Scope note in the wrong place | Verify FAIL a stage later | a structural rule was left to agent judgment | deterministic `scope-documented` + literal format (015) |
 | Comment posted seconds after the review | not considered | feedback cutoff = run start | it rolls to the next run; `/reapply` command (016) |
 | `/reapply` with a leading space | run skipped | expression `startsWith` without trim | type it at the start (feedback is not lost: it rolls to the next run); optional gate job with a bash regex |
-| Gate missing after a re-approve | Verify PASS but no `archive` job | the review event ran an older Verify from the stale merge ref | dispatch from main; proposed fix: trampoline (PR events only start the main-branch workflow) |
+| Gate missing after a re-approve | Verify PASS but no `archive` job | the review event ran an older Verify from the stale merge ref | dispatch from main; fix: trampoline (PR events only start the main-branch workflow) |
 | Plan wrote an un-runnable task (PR #2) | Apply fail at `tasks-complete`, 1 task unticked, nothing pushed | task 2.2 "open the page with `pnpm preview` and check visually"; the CI sandbox denies servers | plan prompt: only tasks an unattended agent can do and check; visual checks → reviewer note (020); PR #2 unblocked via `/reapply` |
 | Verify could not diff against the base | 1 denial (`git fetch --depth=2`), task 1.2 checked from the source only | `actions/checkout` defaults to depth 1; network git is not allowed | `fetch-depth: 0` + prompt hint `git diff origin/main...HEAD` (022) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
@@ -141,8 +141,8 @@ merges (PR title + body).
 
 ## 9. Not yet proven (be honest on slides)
 - Nothing in the PR #1 or PR #2 lifecycles. PR #2 reached the archive gate from a real Approve (no
-  dispatch). Still open: the trampoline fix for stale merge refs (it hit PR #1 three times, PR #2 never).
+  dispatch). The trampoline fix for stale merge refs (024; it hit PR #1 three times, PR #2 never) is built but not yet run on GitHub.
   (`/reapply` and the 015 scope check are proven: run 43114321202.)
-- Not yet run on GitHub: the 020 plan rule (PR #2 was planned before it), the 021 failure summary and
+- Not yet run on GitHub: the 024 trampoline, the 020 plan rule (PR #2 was planned before it), the 021 failure summary and
   failure comment, the 022 full-history Verify checkout.
 - Concurrency of several PRs in parallel, tasks 3 and 4, the Fable model in CI (Opus: PR #2).

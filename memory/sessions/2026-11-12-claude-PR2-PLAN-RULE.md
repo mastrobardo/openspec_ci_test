@@ -45,3 +45,12 @@
   no feedback since `applied_at`); archive fallback = dispatch Verify.
 - Skill: `documentation-and-adrs` (README structure: what/why first, setup, usage, troubleshooting).
 
+## 024: trampoline (D15)
+- `openspec-events.yml`: ready_for_review → Apply mode=apply; changes_requested → Apply
+  mode=reapply; approved → Verify approved_sha=review.commit_id; on the default branch.
+- Apply: no PR-event triggers, `mode` input (auto/apply/reapply; comments force reapply).
+  Verify: no review trigger, `approved_sha` input drives the stale-approval check.
+- Tested: routing of 4 event cases with a stub `gh`; Apply mode selection for 8 cases; YAML,
+  `bash -n`, no `${{ }}` in `run:`, actionlint (only old style notes).
+- Skill: `ci-cd-and-automation`.
+

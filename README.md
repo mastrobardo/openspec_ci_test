@@ -52,7 +52,8 @@ are in [`memory/repo/poc-results.md`](memory/repo/poc-results.md).
 | Path | What it is |
 |---|---|
 | `tasks/task-N.txt` | The input: a small task with acceptance criteria and an out-of-scope list (stand-in for a ticket). |
-| `.github/workflows/openspec-{plan,apply,verify}.yml` | Orchestration only: triggers, checkouts, permissions, calls into `scripts/`. |
+| `.github/workflows/openspec-{plan,apply,verify}.yml` | Orchestration only: checkouts, permissions, calls into `scripts/`. Started by dispatch (and `/reapply` comments), so they always run from `main`. |
+| `.github/workflows/openspec-events.yml` | Trampoline: turns Ready for review, Request changes and Approve into dispatches of Apply/Verify on `main`. |
 | `scripts/run-agent.sh` | Runs one stage with `claude -p`: per-stage tool allowlist, model, output files, exit codes. |
 | `scripts/prompts/{plan,apply,reapply,verify}.md` | The stage prompts. |
 | `scripts/openspec-ops.sh` | Deterministic checks: `change-id`, `validate`, `tasks-complete`, `guard-plan-diff`, `guard-diff`, `scope-documented`, `manifest`. |
@@ -97,6 +98,12 @@ Steps 3 and 4 can also be done through the API (`gh api -X PUT repos/<owner>/<re
 
 Notes:
 
+- **How PR actions start a stage.** `openspec-events.yml` receives the PR event and runs
+  `gh workflow run` for Apply or Verify on `main`, passing `pr`, the `mode`, or the approved sha. The real
+  workflows therefore always run the current version from `main`. A PR event alone would run them from
+  the PR's merge ref, which GitHub rebuilds lazily (D15). Each dispatched run appears under its own
+  workflow in the Actions tab.
+
 - **Model.** Pick it once, in the Plan dropdown (`sonnet`, `opus` or `fable`: the latest model of that
   family). It is saved as `model` in the manifest, and every later stage uses it (D9).
 - **`/reapply [text]`.** The comment must **start** with `/reapply`. A leading space or newline
@@ -137,7 +144,7 @@ The full agent output is `<stage>.json` / `<stage>.md` in the artifact
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| A PR action (Ready, Approve, Request changes) starts **no run**, or runs an old workflow | PR-event workflows run from the PR's merge ref, which GitHub rebuilds lazily | Use the dispatch fallback above (runs from `main`) |
+| A PR action (Ready, Approve, Request changes) starts **no run** | The PR was opened before `openspec-events.yml` existed (PR events run from the PR's merge ref) | Use the dispatch fallback above |
 | Agent run: 1 turn, $0, `is_error` | Token has a line break | Re-set the secret with `tr -d ' \r\n'` (setup step 1) |
 | `/reapply` did nothing | The comment did not start with `/reapply` | Post it again with `/reapply` at the very start |
 | Verify fails "approval is stale" | New commits after the approval | Re-approve |

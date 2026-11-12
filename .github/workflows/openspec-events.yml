@@ -1,0 +1,56 @@
+# Trampoline (024): turns the human PR gates into dispatches of the real workflows on main.
+#   Ready for review              -> OpenSpec Apply  (pr=N, mode=apply)
+#   Review "Request changes"      -> OpenSpec Apply  (pr=N, mode=reapply)
+#   Review "Approve"              -> OpenSpec Verify (pr=N, approved_sha=<review commit>)
+# Why: PR-event workflows run from the PR's merge ref, which GitHub rebuilds lazily, so a PR could
+# run an old Apply/Verify or nothing at all (3 round trips on PR #1). Dispatches always run the
+# workflow file from the default branch, and a dispatch made with GITHUB_TOKEN does start a run.
+# This file itself still runs from the merge ref, so keep it small and stable; a PR opened before
+# it existed needs the manual fallbacks (gh workflow run "OpenSpec Apply|Verify" -f pr=N).
+# No checkout, no secret, no agent: the dispatched workflows re-check everything.
+name: OpenSpec Events
+
+on:
+  pull_request:
+    types: [ready_for_review]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  actions: write         # gh workflow run
+
+jobs:
+  dispatch:
+    # Same-repo openspec/task-N branches only; reviews only when they approve or request changes.
+    if: >-
+      startsWith(github.event.pull_request.head.ref, 'openspec/task-') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event_name == 'pull_request' ||
+       github.event.review.state == 'approved' ||
+       github.event.review.state == 'changes_requested')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch the stage workflow on the default branch
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          STATE: ${{ github.event.review.state }}
+          REVIEW_SHA: ${{ github.event.review.commit_id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          case "$GITHUB_EVENT_NAME:$STATE" in
+            pull_request:)                       wf="OpenSpec Apply";  args=(-f mode=apply) ;;
+            pull_request_review:changes_requested) wf="OpenSpec Apply";  args=(-f mode=reapply) ;;
+            pull_request_review:approved)        wf="OpenSpec Verify"; args=(-f approved_sha="$REVIEW_SHA") ;;
+            *) echo "::error::unexpected event $GITHUB_EVENT_NAME:$STATE"; exit 1 ;;
+          esac
+          gh workflow run "$wf" --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f pr="$PR" "${args[@]}"
+          echo "dispatched: $wf pr=$PR ${args[*]} (ref $DEFAULT_BRANCH)"
+          {
+            echo "### OpenSpec Events: PR #$PR"
+            echo "- event: \`$GITHUB_EVENT_NAME${STATE:+ ($STATE)}\`"
+            echo "- dispatched: **$wf** \`pr=$PR ${args[*]}\` on \`$DEFAULT_BRANCH\`"
+            echo "- runs: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions?query=event%3Aworkflow_dispatch"
+          } >> "$GITHUB_STEP_SUMMARY"

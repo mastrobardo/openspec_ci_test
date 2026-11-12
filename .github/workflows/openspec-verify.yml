@@ -1,7 +1,9 @@
 # Stage 3 of the OpenSpec lifecycle: verify the implementation on an approved PR, then archive it
 # behind a manual gate.
-#   Review with "Approve"   -> verify the approved head
+#   Review with "Approve"   -> dispatched by openspec-events.yml with approved_sha: verify that
+#                              head, fail if the PR has moved since (stale approval)
 #   Manual (pr=N)           -> verify the current head (no approval check)
+# No PR-event trigger: dispatches always run this file from main, never a stale merge ref (024).
 # Job "verify" is read-only and never commits (a push after approval would change the approved head).
 # The verdict goes to a PR comment, the job summary and the artifact; non-PASS fails the job.
 # Job "archive" (D13) runs only after PASS and waits for a reviewer of environment
@@ -12,14 +14,17 @@
 name: OpenSpec Verify
 
 on:
-  pull_request_review:
-    types: [submitted]
   workflow_dispatch:
     inputs:
       pr:
         description: "PR number (branch openspec/task-N)"
         required: true
         type: string
+      approved_sha:
+        description: "Head sha of the approval (set by openspec-events.yml); empty = current head"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read         # verify never pushes (archive raises this at job level)
@@ -33,18 +38,13 @@ defaults:
 
 jobs:
   verify:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.review.state == 'approved' &&
-       startsWith(github.event.pull_request.head.ref, 'openspec/task-') &&
-       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
-      group: openspec-pr-${{ github.event.pull_request.number || inputs.pr }}   # shared with Apply
+      group: openspec-pr-${{ inputs.pr }}   # shared with Apply
       cancel-in-progress: false
     env:
-      PR: ${{ github.event.pull_request.number || inputs.pr }}   # used via env only
+      PR: ${{ inputs.pr }}   # used via env only
     outputs:
       verdict: ${{ steps.agent.outputs.verdict }}
       sha: ${{ steps.pr.outputs.sha }}
@@ -56,7 +56,7 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
-          REVIEW_SHA: ${{ github.event.review.commit_id }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
         run: |
           [[ "$PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
@@ -67,9 +67,12 @@ jobs:
           [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
-          if [[ "$GITHUB_EVENT_NAME" == pull_request_review && "$REVIEW_SHA" != "$sha" ]]; then
-            echo "::error::approval is stale: it was for ${REVIEW_SHA:0:7} but the PR head is ${sha:0:7}. Re-approve." | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"
-            exit 1
+          if [[ -n "$APPROVED_SHA" ]]; then
+            [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::approved_sha must be a full commit sha" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+            if [[ "$APPROVED_SHA" != "$sha" ]]; then
+              echo "::error::approval is stale: it was for ${APPROVED_SHA:0:7} but the PR head is ${sha:0:7}. Re-approve." | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"
+              exit 1
+            fi
           fi
           echo "head=$head" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -220,7 +223,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: openspec-verify-pr${{ github.event.pull_request.number || inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: openspec-verify-pr${{ inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .openspec-ci/runs/
           if-no-files-found: ignore
 
@@ -234,10 +237,10 @@ jobs:
       contents: write        # push the archive commit to the PR branch
       pull-requests: write   # post the archive comment
     concurrency:
-      group: openspec-archive-${{ github.event.pull_request.number || inputs.pr }}
+      group: openspec-archive-${{ inputs.pr }}
       cancel-in-progress: false
     env:
-      PR: ${{ github.event.pull_request.number || inputs.pr }}
+      PR: ${{ inputs.pr }}
       VERIFIED_SHA: ${{ needs.verify.outputs.sha }}
       HEAD_REF: ${{ needs.verify.outputs.head }}
       TASK: ${{ needs.verify.outputs.task }}

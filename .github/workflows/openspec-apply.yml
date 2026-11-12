@@ -1,12 +1,13 @@
 # Stage 2 of the OpenSpec lifecycle: implement an approved change on its PR branch, and re-apply
 # it after a review that requests changes.
-#   Ready for review                -> apply    (work through tasks.md)
-#   Review with "Request changes"   -> reapply  (classify feedback; requirement -> /opsx:update)
-#   PR comment "/reapply [text]"    -> reapply  (owner/member/collaborator only; runs from main,
-#                                               so no stale-merge-ref problem)
-#   Manual (pr=N)                   -> reapply if there is new feedback since the last apply, else apply
-# A PR event runs the workflow from the PR's merge ref; if a PR predates this workflow (stale merge
-# ref) the event silently does nothing. Use the manual trigger then.
+#   Ready for review                -> apply    (dispatched by openspec-events.yml, mode=apply)
+#   Review with "Request changes"   -> reapply  (dispatched by openspec-events.yml, mode=reapply;
+#                                               classify feedback; requirement -> /opsx:update)
+#   PR comment "/reapply [text]"    -> reapply  (owner/member/collaborator only)
+#   Manual (pr=N, mode=auto)        -> reapply if there is new feedback since the last apply, else apply
+# This workflow has no PR-event triggers: PR events run from the PR's merge ref, which GitHub
+# rebuilds lazily (stale workflows, silent no-runs). openspec-events.yml turns them into dispatches,
+# and dispatches and comments always run this file from main (024).
 # Model, task and change come from .openspec-ci/manifest.json (chosen once, at Plan).
 # Agent logic: scripts/run-agent.sh. Checks: scripts/openspec-ops.sh, scripts/pr-feedback.sh.
 # Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch:
@@ -14,10 +15,6 @@
 name: OpenSpec Apply
 
 on:
-  pull_request:
-    types: [ready_for_review]
-  pull_request_review:
-    types: [submitted]
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -26,13 +23,19 @@ on:
         description: "PR number (branch openspec/task-N)"
         required: true
         type: string
+      mode:
+        description: "auto = reapply if there is new feedback since the last apply, else apply"
+        required: false
+        type: choice
+        default: auto
+        options: [auto, apply, reapply]
 
 permissions:
   contents: write        # push the implementation to the PR branch
   pull-requests: write   # post the report as a PR comment
 
 concurrency:
-  group: openspec-pr-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}   # shared with Verify
+  group: openspec-pr-${{ github.event.issue.number || inputs.pr }}   # shared with Verify
   cancel-in-progress: false
 
 defaults:
@@ -41,22 +44,18 @@ defaults:
 
 jobs:
   apply:
-    # Same-repo openspec/task-N branches only; reviews only when they request changes; comments
-    # only "/reapply" on a PR by owner/member/collaborator. The dispatch and comment paths have no
-    # head ref in the payload: "Resolve PR" checks the branch for them.
+    # Comments: only "/reapply" on a PR by owner/member/collaborator. "Resolve PR" checks the
+    # branch (same-repo openspec/task-N, open, not draft) for both paths.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
        startsWith(github.event.comment.body, '/reapply') &&
-       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
-      (startsWith(github.event.pull_request.head.ref, 'openspec/task-') &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       (github.event_name == 'pull_request' || github.event.review.state == 'changes_requested'))
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      PR: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}   # used via env only
+      PR: ${{ github.event.issue.number || inputs.pr }}   # used via env only
       FEEDBACK: .openspec-ci/runs/feedback.md
     steps:
       - name: Resolve PR
@@ -132,16 +131,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APPLIED_AT: ${{ steps.m.outputs.applied_at }}
+          MODE_INPUT: ${{ inputs.mode }}
         run: |
           # Never applied yet: a manual run is a first apply; a change request takes all feedback.
           since="${APPLIED_AT:--}"
           n="$("$CI_SCRIPTS"/pr-feedback.sh "$PR" "$since" "$FEEDBACK")"
-          case "$GITHUB_EVENT_NAME" in
-            pull_request) mode=apply ;;
-            pull_request_review|issue_comment)
+          # A comment or a dispatched "Request changes" (mode=reapply) needs feedback to act on.
+          wanted="${MODE_INPUT:-auto}"
+          [[ "$GITHUB_EVENT_NAME" == issue_comment ]] && wanted=reapply
+          case "$wanted" in
+            apply) mode=apply ;;
+            reapply)
               [[ "$n" -gt 0 ]] || { echo "::error::no review feedback since ${since} (only owner/members/collaborators count; empty reviews and a bare /reapply are ignored)" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
               mode=reapply ;;
-            workflow_dispatch)
+            *)
               if [[ -n "$APPLIED_AT" && "$n" -gt 0 ]]; then mode=reapply; else mode=apply; fi ;;
           esac
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
@@ -309,6 +312,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: openspec-apply-pr${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: openspec-apply-pr${{ github.event.issue.number || inputs.pr }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .openspec-ci/runs/
           if-no-files-found: ignore
