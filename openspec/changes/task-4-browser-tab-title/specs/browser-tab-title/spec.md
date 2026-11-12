@@ -1,3 +1,6 @@
+## Purpose
+Shows the project name in the browser tab, so users with many tabs open can find the app quickly.
+
 ## ADDED Requirements
 
 ### Requirement: Browser tab title names the project
