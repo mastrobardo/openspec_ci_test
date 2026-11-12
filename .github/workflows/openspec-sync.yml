@@ -11,6 +11,11 @@
 # A push after an approval makes it stale: the comment asks the reviewer to re-approve (-> Verify).
 # All triggers run this file from main. Scripts are TRUSTED copies from the workflow's commit.
 name: OpenSpec Sync
+run-name: >-
+  ${{ github.event_name == 'push' && 'Sync · open PRs after a push to main' ||
+      github.event_name == 'issue_comment' &&
+        (startsWith(github.event.comment.body, '/sync') && format('Sync (/sync) · {0}', github.event.issue.title) || 'Comment (ignored)') ||
+      inputs.pr != '' && format('Sync · PR #{0}', inputs.pr) || 'Sync · all open PRs behind main' }}
 
 on:
   push:
@@ -60,7 +65,7 @@ jobs:
           [[ -z "$ONE_PR" || "$ONE_PR" =~ ^[0-9]+$ ]] || { echo "::error::pr must be a number"; exit 1; }
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$DEFAULT_BRANCH" --jq .sha)"
           prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
-                   --json number,headRefName,headRefOid,isCrossRepository)"
+                   --json number,headRefName,headRefOid,isCrossRepository,title)"
           picked=()
           while IFS=$'\t' read -r n ref sha cross; do
             [[ -z "$n" ]] && continue
@@ -70,12 +75,15 @@ jobs:
             echo "PR #$n ($ref): behind main by $behind"
             [[ "$behind" -gt 0 ]] && picked+=("$n")
           done < <(jq -r '.[] | [.number, .headRefName, .headRefOid, .isCrossRepository] | @tsv' <<<"$prs")
-          json="$(printf '%s\n' "${picked[@]}" | jq -Rsc 'split("\n") | map(select(. != "") | tonumber)')"
+          # [{pr, title}] for the matrix (the title only names the job).
+          json="$(printf '%s\n' "${picked[@]}" | jq -Rnc --argjson all "$prs" \
+            '[inputs | select(. != "") | tonumber as $n | {pr: $n, title: ($all[] | select(.number == $n) | .title)}]')"
           echo "prs=$json" >> "$GITHUB_OUTPUT"
           echo "to sync: $json"
           echo "### OpenSpec Sync: PRs behind \`$DEFAULT_BRANCH\` (${main_sha:0:7}): \`$json\`" >> "$GITHUB_STEP_SUMMARY"
 
   sync:
+    name: "sync PR #${{ matrix.pr }} · ${{ matrix.title }}"
     needs: find
     if: needs.find.outputs.prs != '[]' && needs.find.outputs.prs != ''
     runs-on: ubuntu-latest
@@ -83,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pr: ${{ fromJSON(needs.find.outputs.prs) }}
+        include: ${{ fromJSON(needs.find.outputs.prs) }}
     concurrency:
       group: openspec-pr-${{ matrix.pr }}   # shared with Apply and Verify
       cancel-in-progress: false

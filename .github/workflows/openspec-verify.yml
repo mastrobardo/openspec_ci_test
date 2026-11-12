@@ -12,6 +12,7 @@
 # Model, task and change come from .openspec-ci/manifests/<task>.json (chosen once, at Plan).
 # Scripts are TRUSTED copies from the workflow's own commit (main), never from the PR branch.
 name: OpenSpec Verify
+run-name: "Verify · ${{ inputs.label || format('PR #{0}', inputs.pr) }}"
 
 on:
   workflow_dispatch:
@@ -22,6 +23,11 @@ on:
         type: string
       approved_sha:
         description: "Head sha of the approval (set by openspec-events.yml); empty = current head"
+        required: false
+        type: string
+        default: ""
+      label:
+        description: "Display only: the PR title for the run name (set by openspec-events.yml)"
         required: false
         type: string
         default: ""

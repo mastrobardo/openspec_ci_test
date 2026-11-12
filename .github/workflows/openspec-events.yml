@@ -7,8 +7,12 @@
 # workflow file from the default branch, and a dispatch made with GITHUB_TOKEN does start a run.
 # This file itself still runs from the merge ref, so keep it small and stable; a PR opened before
 # it existed needs the manual fallbacks (gh workflow run "OpenSpec Apply|Verify" -f pr=N).
+# A review on a DRAFT PR dispatches nothing: Events comments "mark it Ready for review first" (029).
 # No checkout, no secret, no agent: the dispatched workflows re-check everything.
 name: OpenSpec Events
+run-name: >-
+  Events · ${{ github.event.pull_request.title }} ·
+  ${{ github.event_name == 'pull_request' && 'ready for review' || github.event.review.state }}${{ github.event.pull_request.draft && ' (draft)' || '' }}
 
 on:
   pull_request:
@@ -18,6 +22,7 @@ on:
 
 permissions:
   actions: write         # gh workflow run
+  pull-requests: write   # tell the reviewer when a review on a draft is ignored
 
 jobs:
   dispatch:
@@ -31,13 +36,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Ignore reviews on a draft PR (comment instead)
+        id: draft
+        if: github.event_name == 'pull_request_review' && github.event.pull_request.draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          STATE: ${{ github.event.review.state }}
+        run: |
+          case "$STATE" in approved) what="Approve (which runs Verify)" ;; *) what="Request changes (which runs re-apply)" ;; esac
+          body="$RUNNER_TEMP/draft.md"
+          { echo "## ⏸️ OpenSpec: review ignored, this PR is still a draft"; echo
+            echo "$what only works once the change is implemented. Mark the PR **Ready for review** first:"
+            echo "that runs Apply. Then review again."
+          } > "$body"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+          echo "### OpenSpec Events: PR #$PR · $STATE on a draft: ignored (comment posted)" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Dispatch the stage workflow on the default branch
         id: dispatch
+        if: github.event_name == 'pull_request' || !github.event.pull_request.draft
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           STATE: ${{ github.event.review.state }}
           REVIEW_SHA: ${{ github.event.review.commit_id }}
+          TITLE: ${{ github.event.pull_request.title }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           case "$GITHUB_EVENT_NAME:$STATE" in
@@ -46,7 +70,7 @@ jobs:
             pull_request_review:approved)        wf="OpenSpec Verify"; args=(-f approved_sha="$REVIEW_SHA") ;;
             *) echo "::error::unexpected event $GITHUB_EVENT_NAME:$STATE"; exit 1 ;;
           esac
-          gh workflow run "$wf" --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f pr="$PR" "${args[@]}"
+          gh workflow run "$wf" --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f pr="$PR" -f label="$TITLE" "${args[@]}"
           echo "dispatched: $wf pr=$PR ${args[*]} (ref $DEFAULT_BRANCH)"
           {
             echo "### OpenSpec Events: PR #$PR"

@@ -92,3 +92,9 @@
   comments on PRs #5–#7, 20–35 s each, no agent. Recorded as poc-results §3d with slide points
   (user: the sync step is important for the presentation).
 
+## 029: drafts + run names
+- User approved PR #6 while draft → Verify refused (correct), but only a red run, no PR message.
+  User asked for the draft fix plus clear run names on every workflow.
+- Events: draft review → comment, no dispatch (`pull-requests: write`); passes `label` = PR title.
+  run-name on Plan/Apply/Verify/Events/Sync; Sync matrix → `{pr, title}`, job `sync PR #N · title`.
+

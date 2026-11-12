@@ -1,6 +1,7 @@
 # Stage 1 of the OpenSpec lifecycle: turn tasks/<task>.txt into an OpenSpec change on a draft PR.
 # Agent logic: scripts/run-agent.sh. Checks: scripts/openspec-ops.sh. This file only orchestrates.
 name: OpenSpec Plan
+run-name: "Plan · ${{ inputs.task }} (${{ inputs.model }})"
 
 on:
   workflow_dispatch:
