@@ -1,13 +1,13 @@
 {
-  "task": "task-1",
-  "change": "task-1-version-footer",
-  "stage": "archived",
-  "status": "archived",
-  "plan_run_id": "43091589972",
-  "base_sha": "7eb045408b37e87c905198dea4f75e1350798ea1",
+  "task": "task-2",
+  "change": "task-2-main-heading-text",
+  "stage": "plan",
+  "status": "planned",
+  "plan_run_id": "43171970139",
+  "base_sha": "31067a2f5e06d83288771c33958c41347ffcc830",
   "created_at": "2026-11-11T19:57:53Z",
-  "updated_at": "2026-11-11T22:59:56Z",
-  "model": "sonnet",
+  "updated_at": "2026-11-12T07:00:39Z",
+  "model": "opus",
   "apply_run_id": "43114321202",
   "apply_run_attempt": "1",
   "applied_at": "2026-11-11T22:44:56Z",
@@ -15,5 +15,7 @@
   "archived_as": "2026-11-11-task-1-version-footer",
   "archive_run_id": "43116149538",
   "archived_at": "2026-11-11T22:59:47Z",
-  "verified_sha": "ae3782cbf17fad8ffb457ce90fee939adf631c84"
+  "verified_sha": "ae3782cbf17fad8ffb457ce90fee939adf631c84",
+  "plan_run_attempt": "1",
+  "plan_model": "claude-opus-5-5"
 }
