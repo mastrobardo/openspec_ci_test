@@ -1,0 +1,17 @@
+Title: Add a unit test for the Reset button
+
+As a maintainer, I want an automated test for the Reset button, so that a regression is caught
+before review.
+
+Description:
+Add a unit test that renders the app, clicks the counter button twice, clicks Reset, and checks
+that the counter button shows a count of 0. The test must run with `pnpm test`.
+
+Acceptance criteria:
+- `pnpm test` runs the new test and it passes.
+- The test fails if Reset no longer sets the count to 0.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- Adding new dependencies or a test framework to package.json.
+- Tests for anything other than the Reset button.

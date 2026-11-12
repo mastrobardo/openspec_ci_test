@@ -1,0 +1,16 @@
+Title: Show the current year in the footer
+
+As a visitor, I want the footer to show the current year, so that the page does not look abandoned.
+
+Description:
+Append the current year to the footer, after what it shows today, separated by " · ". For example
+"v0.0.0 (abc1234) · 2026". The year is computed in the browser when the page renders.
+
+Acceptance criteria:
+- The footer ends with " · <current year>", e.g. " · 2026".
+- The rest of the footer text is unchanged.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- A copyright notice or company name.
+- Styling changes.

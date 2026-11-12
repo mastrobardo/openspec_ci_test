@@ -32,6 +32,7 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 15 | Trampoline (D15): `openspec-events.yml` dispatches Apply (`mode=apply/reapply`) / Verify (`approved_sha`) on main; Apply/Verify lose PR-event triggers; Apply `mode` input; Verify stale check via `approved_sha` | done (routing simulated, actionlint clean); **not yet run on GitHub** | 024 |
 | 16 | Third run: PR #4 (task-3) + PR #3 (task-4) in parallel, sonnet; trampoline, 020 rule, 022 checkout proven; both archives failed (new capability without delta `## Purpose`) → `new-specs-have-purpose` check (Plan/Apply/Verify), prompt example, archive `validate-all` | done (local tests on the real PR branches); PR #3/#4: Purpose commits + re-approve pending | 025 |
 | 17 | Sync + resolve stage (D16): `openspec-sync.yml` (push to main, `/sync`, dispatch), agent `resolve` + `resolve.md`, `guard-resolve`, `spec-preflight` (also in Verify), per-task manifests, Purpose ≥ 50 chars; PR #3 unblocked by a manual merge; tasks 5–7 for the CI test | done (local: preflight ±, guard-resolve ±, real conflict merge with a stub agent, actionlint clean); **not yet run on GitHub** | 026 |
+| 18 | Tasks 8–12 for manual E2E runs (not planned yet): 8 footer format + 9 footer year (same line and same `app-version-footer` requirement: code + spec conflict for `resolve`), 10 Reset disabled at 0 (review/`/reapply` candidate), 11 unit test without a test runner (expected Apply failure → failure comment), 12 README-only change | done (files only; the user runs Plan by hand) | 027 |
 
 ## Next action
 
