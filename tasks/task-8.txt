@@ -1,0 +1,19 @@
+Title: Make the version footer easier to read
+
+As a user reporting a problem, I want the footer to label the version clearly, so that I know what
+to copy into a bug report.
+
+Description:
+The footer currently reads "v0.0.0 (abc1234)": the version and the short commit SHA in parentheses.
+Change it to "Version 0.0.0 · abc1234": the word "Version", the version number without the "v"
+prefix, a middle dot, and the short commit SHA.
+
+Acceptance criteria:
+- The footer reads "Version <version> · <short sha>", e.g. "Version 0.0.0 · abc1234".
+- The version and the SHA still come from the build (package.json and git), as today.
+- No other text on the page changes.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- Styling changes.
+- Showing a build date or anything else in the footer.

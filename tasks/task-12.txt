@@ -1,0 +1,19 @@
+Title: Document the demo app in the README
+
+As a new contributor, I want the README to say what the demo page contains, so that I know what
+the OpenSpec changes are applied to.
+
+Description:
+Add a section "## The demo app" to README.md, right before "## Repository layout". In a few
+sentences or a short list, describe what the main page shows: the heading, the counter button and
+the Reset button, the documentation and community links, and the version footer.
+
+Acceptance criteria:
+- README.md has a "## The demo app" section placed right before "## Repository layout".
+- It mentions the heading, the counter and Reset buttons, the links, and the version footer.
+- No file other than README.md changes.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- Changes to the application code.
+- Screenshots or images.
