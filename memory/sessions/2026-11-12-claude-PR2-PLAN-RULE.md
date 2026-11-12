@@ -79,3 +79,11 @@
   rejects markers and edits to non-conflicted files.
 - Skills: `ci-cd-and-automation`, `debugging-and-error-recovery`.
 
+## 027: tasks 8–12 (user runs E2E by hand; no Plan dispatched by Claude)
+- User decision: task files stay on main; the user drives E2E runs manually. Claude must not start
+  Plan runs.
+- task-8/9: same footer line + same requirement (code and spec conflict for `resolve`); task-10:
+  review candidate; task-11: expected Apply failure (no test runner, no new deps) to exercise the
+  021 failure comment; task-12: README-only change.
+- Pushing 027 to main triggers Sync on open PRs #5–#7 (clean merge: tasks/ and docs only).
+
