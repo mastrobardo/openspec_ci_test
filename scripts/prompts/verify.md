@@ -3,6 +3,9 @@ You are running unattended in CI. Run each shell command as its own Bash call, w
 
 Run /opsx:verify {{CHANGE_ID}} to check the implementation on this branch against the OpenSpec
 change `{{CHANGE_ID}}`. Also run `pnpm build` and `pnpm lint`.
+The checkout has full history and the base branch as `origin/main`: see what the PR changed with
+`git diff --stat origin/main...HEAD` and `git diff origin/main...HEAD -- <path>` (no fetch needed;
+network git commands are denied).
 
 Source of truth:
 - The change artifacts (proposal.md, specs, design.md, tasks.md) as they are on this branch are the

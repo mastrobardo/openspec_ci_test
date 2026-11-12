@@ -66,8 +66,17 @@ CI: 21–41 turns on Fable ($0.46–1.92). Every CI run used `claude-sonnet-5-5`
 ## 3b. Run log, PR #2 (task-2, model `opus`, UTC, 2026-11-12)
 | Time | Run | Stage / event | Result | Agent stats |
 |---|---|---|---|---|
+| 06:59 | 43171970139 | Plan dispatch (task-2, opus) | ✅ draft PR #2 (planned before the 020 rule: task 2.2 needed a browser) | 28 turns, $0.50 |
 | 07:05 | 43172704001 | Apply ("Ready for review") | ❌ `tasks-complete`: task 2.2 (browser check) unticked; 2 permission denials (`pnpm preview` in background, `vite build --outDir /tmp`); guards, build, lint OK | 28 turns, $0.36 |
 | 07:15 | 43173962826 | `/reapply` (reword 2.2 to the CI-runnable `dist/` check) | ✅ F1 = implementation; 2.2 reworded and ticked, design.md Risks line aligned (spec impact: `design.md`), browser check became a reviewer note; `<h1>` edit redone | 33 turns, $0.41, 0 denials |
+| 07:25 | 43175121120 | Verify (Approve, auto; ran from the merge ref, pre-021) | ✅ **PASS**; 1 denial: `git fetch --depth=2 origin main` (shallow checkout, could not diff vs base for task 1.2) → fetch-depth 0 (022) | 22 turns, $0.38 |
+| 07:27 | 43175121120 | `archive` job (gate approved) | ✅ archived as `2026-11-12-task-2-main-heading-text`, main spec `main-page-heading` (13 s job) | – |
+| 07:28 | – | Squash merge PR #2 | ✅ `930a91b` | – |
+
+PR #2 final: Plan 06:59 → merge 07:28 (**29 min** wall clock, all event-driven except Plan; no stale merge ref,
+because the PR was opened after every workflow existed). 4 agent runs on `claude-opus-5-5`: Plan (28 turns,
+$0.50), Apply (failed on an un-runnable task), `/reapply`, Verify. Total **111 turns, $1.65 notional**.
+Opus costs about 2× Sonnet per stage on this repo.
 
 ## 4. Decisions (full table in docs/PLAN.md)
 D1 POC in this repo · D2 tasks as text files (stand-in for Jira) · D3 subscription token
@@ -93,6 +102,7 @@ merges (PR title + body).
 | `/reapply` with a leading space | run skipped | expression `startsWith` without trim | type it at the start (feedback is not lost: it rolls to the next run); optional gate job with a bash regex |
 | Gate missing after a re-approve | Verify PASS but no `archive` job | the review event ran an older Verify from the stale merge ref | dispatch from main; proposed fix: trampoline (PR events only start the main-branch workflow) |
 | Plan wrote an un-runnable task (PR #2) | Apply fail at `tasks-complete`, 1 task unticked, nothing pushed | task 2.2 "open the page with `pnpm preview` and check visually"; the CI sandbox denies servers | plan prompt: only tasks an unattended agent can do and check; visual checks → reviewer note (020); PR #2 unblocked via `/reapply` |
+| Verify could not diff against the base | 1 denial (`git fetch --depth=2`), task 1.2 checked from the source only | `actions/checkout` defaults to depth 1; network git is not allowed | `fetch-depth: 0` + prompt hint `git diff origin/main...HEAD` (022) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -130,6 +140,9 @@ merges (PR title + body).
   PR title, message = PR body.
 
 ## 9. Not yet proven (be honest on slides)
-- Nothing in the PR #1 lifecycle. Still open: the trampoline fix for stale merge refs (the archive gate
-  was reached only via dispatch). (`/reapply` and the 015 scope check are proven: run 43114321202.)
-- Concurrency of several PRs in parallel, other tasks (task-2..4), the Opus/Fable models in CI.
+- Nothing in the PR #1 or PR #2 lifecycles. PR #2 reached the archive gate from a real Approve (no
+  dispatch). Still open: the trampoline fix for stale merge refs (it hit PR #1 three times, PR #2 never).
+  (`/reapply` and the 015 scope check are proven: run 43114321202.)
+- Not yet run on GitHub: the 020 plan rule (PR #2 was planned before it), the 021 failure summary and
+  failure comment, the 022 full-history Verify checkout.
+- Concurrency of several PRs in parallel, tasks 3 and 4, the Fable model in CI (Opus: PR #2).

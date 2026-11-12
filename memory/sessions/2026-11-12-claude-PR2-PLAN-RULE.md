@@ -29,3 +29,11 @@
 - Skills: `ci-cd-and-automation` (workflow changes), `test-driven-development` not used formally
   (scenario tests with real run data instead).
 
+## 022: PR #2 complete + Verify full-history checkout
+- `/reapply` 43173962826 ✅ (33 turns, $0.41); Verify 43175121120 ✅ PASS from a real Approve
+  (22 turns, $0.38, 1 denial `git fetch --depth=2 origin main`); gate → archive (13 s) → squash
+  merge `930a91b` at 07:28Z. PR #2 total 29 min.
+- Fix: Verify checkout `fetch-depth: 0`, `verify.md` hint `git diff origin/main...HEAD`.
+- Records: poc-results §3b (rows, PR #2 final), §5 problem row, §9; PROGRESS row 14 and next action
+  (README → 023); ci-gotchas.
+

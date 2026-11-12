@@ -28,18 +28,17 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 11c | Apply runs trusted scripts from the workflow commit (`$CI_SCRIPTS`), prompts next to the script | done; Apply + 2 re-applies passed on GitHub (PR #1, spec impact shown for the SHA requirement) | 012 |
 | 12 | PR #2 (task-2, opus) Apply failed: Plan wrote a browser-check task CI cannot run → `plan.md` rule (tasks must be doable unattended; visual checks are reviewer notes). PR #2 unblocked by the user with `/reapply` | done (prompt); PR #2 unblocked by `/reapply` run 43173962826 (✅, 33 turns, $0.41) | 020 |
 | 13 | Failure-aware run summary: `scripts/run-summary.sh` (failed step, recorded reason, agent's Deviations/Issues, denials, build/lint tail) in the job summary and artifact (`summary.md`) of Plan/Apply/Verify/archive; failed Apply/re-apply posts it as a PR comment; checks record reasons in `$RUNNER_TEMP/openspec-ci-failures.txt` | done (local tests on run 43172704001 data + synthetic cases, actionlint clean); **not yet run on GitHub** | 021 |
+| 14 | PR #2 complete: Verify PASS (Approve) → gate → archived → squash merge `930a91b` in 29 min. Verify checkout `fetch-depth: 0` + diff hint in `verify.md` (the agent could not diff vs base) | done; fetch-depth **not yet run on GitHub** | 022 |
 
 ## Next action
 
-State (2026-11-12): PR #2 in progress (see item 0). **The full lifecycle is proven on GitHub.** PR #1 went Plan → Apply → re-apply ×5
+State (2026-11-12): PR #1 and PR #2 (task-2, opus, 29 min, merged `930a91b`) are complete. **The full lifecycle is proven on GitHub.** PR #1 went Plan → Apply → re-apply ×5
 (incl. `/reapply`) → Verify PASS → gated archive → squash merge `2362212`. `main` holds
 `openspec/specs/app-version-footer/spec.md` and `openspec/changes/archive/2026-11-11-task-1-version-footer/`.
 Full record for the presentation: `memory/repo/poc-results.md` (update it in every commit).
 
 The user resumes with **step 9**:
-0. **PR #2** (task-2, opus): Apply failed (43172704001), `/reapply` fixed it (43173962826), see
-   `poc-results.md` §3b. Next: review, then Approve → Verify → gate → merge (clean-run data).
-1. **Step 9: README** (commit `022`; show the outline first): setup (secret, Actions settings,
+1. **Step 9: README** (commit `023`; show the outline first): setup (secret, Actions settings,
    environment `openspec-archive`, squash-only), a lifecycle diagram, every trigger + its dispatch
    fallback, `/reapply [text]` (must start the comment), model dropdown, the D12 scope rule, the
    archive gate ("Review deployments"), troubleshooting → `memory/repo/ci-gotchas.md`. Replace the
@@ -49,8 +48,7 @@ The user resumes with **step 9**:
    (`permissions: actions: write`); the real workflows keep only `workflow_dispatch` (+ `issue_comment`
    for `/reapply`). This ends stale-merge-ref surprises (3 round trips on PR #1). Check: a dispatched
    run's `review.commit_id` is gone, so pass the approved sha as an input for the stale-approval check.
-3. **Clean second run**: task-2 (or 3/4) through the full flow on a new PR, ideally two PRs in
-   parallel (concurrency), for clean presentation data.
+3. **Clean third run**: task-3 and task-4 in parallel (concurrency); first GitHub runs of 020/021/022.
 4. **Presentation** from `poc-results.md` (outline or deck on request).
 5. Cleanup: delete `probe/007` on the old repo; optionally retire `arcibardo/openspec_ci`.
 

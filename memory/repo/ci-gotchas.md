@@ -117,3 +117,8 @@ Learned testing Apply on PR #1 (2026-11-11):
   every step has one. The job summary step must run before `upload-artifact` to include
   `summary.md` in the artifact. A second `actions/checkout` wipes the workspace, so failure reasons
   are collected in `$RUNNER_TEMP` (outside it), not in `.openspec-ci/runs/`.
+- `actions/checkout` is shallow (depth 1) by default, and the agent may not run network git. Verify
+  on PR #2 could not diff the PR against `main` (denied `git fetch --depth=2 origin main`). Verify
+  now checks out with `fetch-depth: 0` (all branches, so `origin/main` exists) and the prompt names
+  `git diff origin/main...HEAD` (022).
+

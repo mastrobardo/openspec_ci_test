@@ -89,6 +89,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ steps.pr.outputs.sha }}   # exactly the commit being verified
+          fetch-depth: 0                       # full history + origin/main, so the agent can diff the PR
 
       - name: Read manifest
         id: m
