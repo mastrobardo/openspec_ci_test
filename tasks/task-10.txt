@@ -1,0 +1,18 @@
+Title: Disable Reset when there is nothing to reset
+
+As a user, I want the Reset button to be disabled while the count is 0, so that I can see there is
+nothing to reset.
+
+Description:
+On the main page, the Reset button next to the counter is always enabled. Make it disabled (the
+HTML disabled attribute) while the count is 0, and enabled as soon as the count is above 0.
+
+Acceptance criteria:
+- On load (count 0) the Reset button is disabled.
+- After one click on the counter button, the Reset button is enabled.
+- Clicking Reset sets the count to 0, and the Reset button is disabled again.
+- `pnpm build` and `pnpm lint` succeed.
+
+Out of scope:
+- New CSS for the disabled state (the browser default is enough).
+- Changing the counter button.
