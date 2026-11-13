@@ -51,13 +51,15 @@ Human merges.
 | D14 | Squash-only merges, commit = PR title + body. | User decision (2026-11-11): the bot commits per stage are noise; the PR body describes the change. GitHub has no "default" method, so the others are disabled. |
 | D15 | PR events (Ready for review, Request changes, Approve) only reach `openspec-events.yml`, which dispatches Apply (`mode`) or Verify (`approved_sha`) on the default branch. Apply/Verify have no PR-event triggers. | User decision (2026-11-12): PR-event workflows run from the lazily rebuilt merge ref (3 stale or missing runs on PR #1); dispatches always run the current workflow from `main`. |
 | D16 | Sync stage: on every push to `main` (and `/sync`), merge `main` into each open OpenSpec PR that is behind. Clean → deterministic checks + push; conflict → agent `resolve` (main is law; adapt this change, incl. its own delta) behind `guard-resolve`; a spec preflight proves the change still archives onto main's specs. The push makes approvals stale: re-approve → Verify. | User decision (2026-11-12) after parallel PRs #3/#4 conflicted (on the shared manifest; real code/spec conflicts are next). GitHub's merge queue re-tests but never resolves. |
+| D17 | Merges wait for Sync: branch protection on `main` requires PRs to be up to date (strict, no required checks, admins not enforced). Sync skips a PR that was merged or closed after it was listed; Verify posts a failure without a verdict on the PR. | User decision (2026-11-13) after PR #5 was merged 13 s after PR #7, while Sync was listing it (red Sync job, PR #5 reached `main` unsynced) and a stale approval on PR #6 left only a red run. |
 
 ## Required GitHub settings (manual, by the repo owner)
 
 1. Secret `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`).
 2. Settings → Actions → General → Workflow permissions: **Read and write**, and tick
    **Allow GitHub Actions to create and approve pull requests**.
-3. Optional: branch protection on `main` requiring the "OpenSpec Verify" check.
+3. Branch protection on `main`: "Require branches to be up to date before merging", no required
+   checks (D17, applied via API 2026-11-13).
 
 ## Known gotchas
 

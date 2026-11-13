@@ -151,3 +151,9 @@ Learned testing Apply on PR #1 (2026-11-11):
 - `run-name:` can use `inputs`, `github.event` and `format()`; actionlint type-checks it. A dispatch
   carries only its inputs, so the caller passes a display-only `label` (the PR title).
 
+- A Sync job can start after its PR was merged (PR #5, 13 s after `find` listed it): "not open" is
+  a race, not a failure. Sync now skips it with a notice (031). Branch protection "require up to date"
+  (`strict: true`) is what really keeps unsynced PRs off `main`; it is set with `contexts: []`, and
+  whether GitHub enforces strict with no required checks is to be confirmed on tasks 8/9.
+- Verify's early guards (draft, stale approval) used to fail only in the run. Its PR comment needs a
+  signal set before those guards (`steps.pr.outputs.commentable`), because `head` is written last.

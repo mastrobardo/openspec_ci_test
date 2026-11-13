@@ -89,9 +89,15 @@ are in [`memory/repo/poc-results.md`](memory/repo/poc-results.md).
 4. **Squash-only merges** (Settings → General → Pull Requests): allow only squash merging, with the
    commit message "Pull request title and description". The per-stage bot commits disappear, and
    the PR body describes the change.
+5. **Up to date before merging** (Settings → Branches → `main`): branch protection with
+   "Require branches to be up to date before merging" and no required checks. GitHub then holds the
+   merge button until Sync has merged the latest `main` into the PR, so no PR reaches `main` unsynced (031).
+   Admins can still bypass it; don't.
 
-Steps 3 and 4 can also be done through the API (`gh api -X PUT repos/<owner>/<repo>/environments/openspec-archive …`,
-`gh api -X PATCH repos/<owner>/<repo> -F allow_merge_commit=false -F allow_rebase_merge=false …`).
+Steps 3–5 can also be done through the API (`gh api -X PUT repos/<owner>/<repo>/environments/openspec-archive …`,
+`gh api -X PATCH repos/<owner>/<repo> -F allow_merge_commit=false -F allow_rebase_merge=false …`,
+`gh api -X PUT repos/<owner>/<repo>/branches/main/protection` with
+`{"required_status_checks":{"strict":true,"contexts":[]},"enforce_admins":false,"required_pull_request_reviews":null,"restrictions":null}`).
 
 ## Running a change
 
@@ -141,7 +147,8 @@ Notes:
   quote text that `main` changed. `guard-resolve` allows edits only to conflicted files and the
   change's own folder. A **spec preflight** (archive into a scratch copy, then `validate --all`) proves
   the change still applies to `main`'s specs. The push makes any approval stale, so re-approve to run
-  Verify. Conflicts on an already archived PR are left to a human.
+  Verify. Conflicts on an already archived PR are left to a human. A PR merged or closed while Sync
+  is running is skipped quietly (031).
 - **New capabilities need a Purpose.** A delta spec for a new capability starts with `## Purpose`
   (at least 50 characters). Otherwise the archived main spec fails `validate --strict`. This is checked at Plan,
   Apply and Verify.
@@ -158,7 +165,9 @@ For a failed run, it adds **Why it failed**:
 - every command the CI sandbox refused (permission denials),
 - the last lines of `pnpm build` / `pnpm lint` output, if those failed.
 
-A failed Apply or Re-apply also posts this as a **PR comment**, saying whether anything was pushed and how to retry.
+A failed Apply, Re-apply or Sync also posts this as a **PR comment**, saying whether anything was pushed and how to retry.
+So does a Verify that stops before a verdict (draft, stale approval, failed checks; 031); a verdict
+(PASS, FAIL, INCONCLUSIVE) is always posted as its own comment.
 The full agent output is `<stage>.json` / `<stage>.md` in the artifact
 (`gh run download <run-id> -R <owner>/<repo> -D <new-dir>`; use a fresh directory per attempt).
 
@@ -171,6 +180,7 @@ The full agent output is `<stage>.json` / `<stage>.md` in the artifact
 | `/reapply` did nothing | The comment did not start with `/reapply` | Post it again with `/reapply` at the very start |
 | Verify fails "approval is stale" | New commits after the approval | Re-approve |
 | Apply fails at `tasks-complete` | The agent could not finish a task (see Why it failed) | `/reapply <what to change>`, e.g. reword a task CI cannot run |
+| Merge button says the branch is **out of date** | `main` moved; Sync has not pushed yet | Wait for the Sync run (don't use "Update branch": it bypasses Sync's checks) |
 | PR shows merge conflicts | `main` moved after the PR was opened | Wait for the Sync run (it starts on every push to `main`), or comment `/sync` |
 | Runs stuck `queued` or `startup_failure` everywhere | GitHub incident | Check githubstatus.com; re-run a known-good commit before blaming the code |
 

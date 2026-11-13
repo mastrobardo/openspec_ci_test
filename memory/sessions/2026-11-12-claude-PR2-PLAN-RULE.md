@@ -105,3 +105,11 @@
 - Race: PR #5 merged 13 s after #7 while Sync was listing → "PR #5 is not open" (red, harmless).
 - Totals: 10 agent runs, 162 turns, $1.17; main healthy (build, lint, validate --all 6 specs).
 
+
+## 031: fixes from the PR #5–#7 run (2026-11-13)
+- User approved all three proposed fixes and asked to register them for the PPT.
+- Sync: closed/merged PR → `skip=true`, notice + summary line, every later step gated.
+- Verify: `commentable` output after the open check; "Comment on failure (no verdict)" step.
+- Branch protection on `main` via API (strict, no contexts, admins not enforced); D17.
+- Recorded: poc-results §5 rows, §6 guardrail, §7 lessons, §8 settings, §9, §3d slide point.
+- Skills: ci-cd-and-automation (workflow gating), documentation-and-adrs (D17, README).

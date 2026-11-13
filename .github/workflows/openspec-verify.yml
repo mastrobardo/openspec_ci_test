@@ -72,6 +72,7 @@ jobs:
           [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          echo "commentable=true" >> "$GITHUB_OUTPUT"   # 031: an open openspec PR: failures below go to it
           [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is still a draft" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           if [[ -n "$APPROVED_SHA" ]]; then
             [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::approved_sha must be a full commit sha" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
@@ -229,6 +230,22 @@ jobs:
           fi
           cat .openspec-ci/runs/summary.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Comment on failure (no verdict)
+        # 031: early failures (draft, stale approval, manifest, deterministic checks, agent error)
+        # used to show only in the run. A verdict (FAIL/INCONCLUSIVE) is already posted above.
+        if: failure() && steps.pr.outputs.commentable == 'true' && steps.agent.outputs.verdict == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="$RUNNER_TEMP/failure-comment.md"
+          { sed '1s/^### /## ❌ /' .openspec-ci/runs/summary.md
+            printf '\n---\nVerify stopped before a verdict; nothing was archived. [Run log and artifact](%s).\n' "$RUN_URL"
+            printf 'Draft or stale approval: mark the PR **Ready for review** / approve the current head again. '
+            printf 'Failed checks: comment `/reapply <what to fix>`, then approve again.\n'
+          } > "$body"
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+
       - name: Upload agent output
         if: always()
         uses: actions/upload-artifact@v7
@@ -263,6 +280,7 @@ jobs:
         run: |
           info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid,state,isDraft)"
           [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          echo "commentable=true" >> "$GITHUB_OUTPUT"   # 031: an open openspec PR: failures below go to it
           [[ "$(jq -r .isDraft <<<"$info")" == false ]] || { echo "::error::PR #$PR is a draft" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           now="$(jq -r .headRefOid <<<"$info")"
           [[ "$now" == "$VERIFIED_SHA" ]] || {

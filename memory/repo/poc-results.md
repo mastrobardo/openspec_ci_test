@@ -130,6 +130,8 @@ Slide points:
 - Correctness beyond text: `spec-preflight` archives the change into a scratch copy of the
   updated main specs, so a delta that no longer applies fails here, not at the archive gate.
 - The human gate is preserved: the sync push makes approvals stale; re-approve → Verify.
+- Hardening from the run itself (031): the race we hit (merge 13 s into a Sync) became a quiet skip
+  plus a repo rule (merge only when up to date), and the stale approval now explains itself on the PR.
 
 ## 4. Decisions (full table in docs/PLAN.md)
 D1 POC in this repo · D2 tasks as text files (stand-in for Jira) · D3 subscription token
@@ -160,8 +162,8 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
 | Second parallel PR conflicts (PR #3 after #4) | GitHub "conflicts" on `.openspec-ci/manifest.json` only | every branch wrote the same manifest path; each squash merge put one task's manifest on main | per-task `.openspec-ci/manifests/<task>.json`; PR #3 unblocked by a manual merge (keep ours); Sync stage for real conflicts (026) |
 | Approval on a draft PR (PR #6) | a red Verify run, no message on the PR | GitHub accepts reviews on drafts; the trampoline dispatched blindly | Events ignores reviews on drafts and comments "mark it Ready for review first" (029) |
 | Runs hard to tell apart | every dispatched run was titled "OpenSpec Apply"/"OpenSpec Verify" | dispatches carry only `pr` | `run-name` on every workflow; the trampoline passes the PR title as `label`; Sync jobs are named `sync PR #N · <title>` (029) |
-| Approval while Apply is still running (PR #6) | Verify ❌ "approval is stale" | the approval was for the pre-Apply head; Verify queued behind Apply | correct guard; approve after Apply's report comment. Idea: Verify posts early failures on the PR |
-| Merge during a Sync (PR #5, 13 s after PR #7) | Sync job ❌ "PR #5 is not open" | `find` listed the PR, the user merged it before the job started | proposed: a closed PR is a quiet skip; branch protection "up to date before merging" |
+| Approval while Apply is still running (PR #6) | Verify ❌ "approval is stale" | the approval was for the pre-Apply head; Verify queued behind Apply | correct guard; approve after Apply's report comment. Verify now posts every failure without a verdict on the PR ("stopped before a verdict", with what to do) (031) |
+| Merge during a Sync (PR #5, 13 s after PR #7) | Sync job ❌ "PR #5 is not open" | `find` listed the PR, the user merged it before the job started | Sync: a PR merged/closed after `find` is a quiet skip (notice, no red run); branch protection on `main` "require up to date before merging" holds the merge until Sync has pushed (031, D17) |
 | Missing verdict → wrong exit code | exit 1 instead of 4 | `pipefail` + `grep` with no match | `{ grep || true; }` (013) |
 
 ## 6. Guardrails (security slide)
@@ -180,9 +182,12 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   denials; a failed Apply/re-apply also posts it as a PR comment.
 - Explicit workflow `permissions:` (repo default read); Verify has `contents: read`; stale-approval
   check; archive behind a required-reviewer environment.
+- Merges wait for Sync (031, D17): branch protection on `main` requires PRs to be up to date, so a
+  PR cannot reach `main` without the latest `main` merged in and checked by Sync.
 
 ## 7. Lessons (for the closing slide)
-- Fast human merges race the automation: enforce "up to date before merging" so Sync always runs between merges.
+- Fast human merges race the automation: enforce "up to date before merging" so Sync always runs between merges (031). Treat "the world changed under me" (PR merged meanwhile) as a skip, not an error.
+- Every failure goes where the human acted: a rejected approval belongs on the PR, not only in a red run (031).
 - Parallel work needs a sync stage: merge main into every open PR after each merge, deterministic when clean, agent only on conflict, guarded, and re-gated by a human.
 - Gate agents with human PR actions plus deterministic checks; use the LLM for judgment, scripts for
   structure.
@@ -200,6 +205,8 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   policy (review events run on `refs/pull/N/merge`).
 - Merges: squash only (`allow_merge_commit=false`, `allow_rebase_merge=false`); squash commit title =
   PR title, message = PR body.
+- 2026-11-13 (031): branch protection on `main`: required status checks `strict: true`, no contexts,
+  admins not enforced, no required reviews.
 
 ## 9. Not yet proven (be honest on slides)
 - Nothing in the PR #1 or PR #2 lifecycles. PR #2 reached the archive gate from a real Approve (no
@@ -209,4 +216,7 @@ merges (PR title + body) · D15 PR events only dispatch the stage workflows on m
   the 022 full-history Verify checkout, parallel PRs. Proven on PRs #5–#7: the 025 Purpose rule at Plan, the 026 Sync clean path (3 PRs in parallel,
   no agent) and the **resolve path** (PR #7, run 43215203954), the 029 run names. Not yet on GitHub: the
   021 failure comment (task-11 should trigger it), the spec-preflight failing case, the 029 draft comment.
+- 031 (Sync quiet skip, Verify failure comment, up-to-date branch protection): built, not yet run on
+  GitHub. Open: does `strict` with **no** required checks block the merge of a behind PR? Check on
+  tasks 8/9 (`gh pr view N --json mergeStateStatus` → `BEHIND`).
 - The Fable model in CI (Opus: PR #2; Sonnet: PR #1, #3, #4).

@@ -108,15 +108,25 @@ jobs:
           head="$(jq -r .headRefName <<<"$info")"
           [[ "$head" =~ ^openspec/task-[0-9]+$ ]] || { echo "::error::branch $head is not openspec/task-N" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
           [[ "$(jq -r .isCrossRepository <<<"$info")" == false ]] || { echo "::error::fork PRs are not supported" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
-          [[ "$(jq -r .state <<<"$info")" == OPEN ]] || { echo "::error::PR #$PR is not open" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"; exit 1; }
+          # 031: a PR merged or closed between "find" and this job is not an error (race with a fast
+          # human merge, 030): skip quietly, every later step checks steps.pr.outputs.skip.
+          state="$(jq -r .state <<<"$info")"
+          if [[ "$state" != OPEN ]]; then
+            echo "::notice::PR #$PR is $state now (it changed after Sync listed it): skipped"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "### OpenSpec Sync: PR #$PR · ⏭️ skipped (PR is \`$state\`; it changed after Sync listed it)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           echo "head=$head" >> "$GITHUB_OUTPUT"
 
       - name: Checkout workflow commit (trusted scripts)
         id: checkout_scripts
         uses: actions/checkout@v7
+        if: steps.pr.outputs.skip != 'true'
 
       - name: Stash trusted scripts outside the workspace
         id: stash_scripts
+        if: steps.pr.outputs.skip != 'true'
         run: |
           cp -R scripts "$RUNNER_TEMP/ci-scripts"
           echo "CI_SCRIPTS=$RUNNER_TEMP/ci-scripts" >> "$GITHUB_ENV"
@@ -124,12 +134,14 @@ jobs:
       - name: Checkout PR branch (full history, for the merge)
         id: checkout_pr
         uses: actions/checkout@v7
+        if: steps.pr.outputs.skip != 'true'
         with:
           ref: ${{ steps.pr.outputs.head }}
           fetch-depth: 0
 
       - name: Read manifest
         id: m
+        if: steps.pr.outputs.skip != 'true'
         env:
           HEAD_REF: ${{ steps.pr.outputs.head }}
         run: |
@@ -146,6 +158,7 @@ jobs:
 
       - name: Merge main
         id: merge
+        if: steps.pr.outputs.skip != 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
@@ -168,34 +181,34 @@ jobs:
 
       - uses: pnpm/action-setup@v6
         id: setup_pnpm
-        if: steps.merge.outputs.result != 'uptodate'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result != 'uptodate'
         with:
           version: 10
 
       - uses: actions/setup-node@v7
         id: setup_node
-        if: steps.merge.outputs.result != 'uptodate'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result != 'uptodate'
         with:
           node-version: 22
           cache: pnpm
 
       - name: Install dependencies and tools
         id: install
-        if: steps.merge.outputs.result != 'uptodate'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result != 'uptodate'
         run: |
           pnpm install --frozen-lockfile
           npm install -g @fission-ai/openspec@1.14.1 @anthropic-ai/claude-code@2.1.322
 
       - name: Refuse to resolve an archived change
         id: archived_conflict
-        if: steps.merge.outputs.result == 'conflict' && steps.m.outputs.stage == 'archived'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result == 'conflict' && steps.m.outputs.stage == 'archived'
         run: |
           echo "::error::this change is already archived; resolve the conflict by hand (files: $(paste -sd, "$CONFLICTS"))" | tee -a "$RUNNER_TEMP/openspec-ci-failures.txt"
           exit 1
 
       - name: Run agent (resolve)
         id: agent
-        if: steps.merge.outputs.result == 'conflict'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result == 'conflict'
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_MODEL: ${{ steps.m.outputs.model }}
@@ -205,14 +218,14 @@ jobs:
 
       - name: Guard - resolve touched only conflicted files and this change
         id: guard
-        if: steps.merge.outputs.result == 'conflict'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result == 'conflict'
         env:
           CHANGE: ${{ steps.m.outputs.change }}
         run: '"$CI_SCRIPTS"/openspec-ops.sh guard-resolve "$CHANGE" "$CONFLICTS"'
 
       - name: Check result (validate, Purpose, tasks, spec preflight, build, lint)
         id: check
-        if: steps.merge.outputs.result != 'uptodate'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result != 'uptodate'
         env:
           CHANGE: ${{ steps.m.outputs.change }}
           STAGE: ${{ steps.m.outputs.stage }}
@@ -230,7 +243,7 @@ jobs:
 
       - name: Write manifest, commit, push and comment
         id: push
-        if: steps.merge.outputs.result != 'uptodate'
+        if: steps.pr.outputs.skip != 'true' && steps.merge.outputs.result != 'uptodate'
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ steps.m.outputs.task }}
@@ -277,7 +290,7 @@ jobs:
 
       - name: Run summary (job summary + summary.md; on failure, why)
         id: summary
-        if: always()
+        if: always() && steps.pr.outputs.skip != 'true'
         env:
           STEPS_JSON: ${{ toJSON(steps) }}
           CHANGE: ${{ steps.m.outputs.change }}
@@ -317,7 +330,7 @@ jobs:
 
       - name: Upload run output
         id: upload
-        if: always()
+        if: always() && steps.pr.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: openspec-sync-pr${{ matrix.pr }}-${{ github.run_id }}-${{ github.run_attempt }}

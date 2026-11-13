@@ -33,7 +33,8 @@ unchecked step. **Every step needs explicit user approval before it is committed
 | 16 | Third run: PR #4 (task-3) + PR #3 (task-4) in parallel, sonnet; trampoline, 020 rule, 022 checkout proven; both archives failed (new capability without delta `## Purpose`) → `new-specs-have-purpose` check (Plan/Apply/Verify), prompt example, archive `validate-all` | done (local tests on the real PR branches); PR #3/#4: Purpose commits + re-approve pending | 025 |
 | 17 | Sync + resolve stage (D16): `openspec-sync.yml` (push to main, `/sync`, dispatch), agent `resolve` + `resolve.md`, `guard-resolve`, `spec-preflight` (also in Verify), per-task manifests, Purpose ≥ 50 chars; PR #3 unblocked by a manual merge; tasks 5–7 for the CI test | done; clean path (Sync 43197508948) and **resolve path** (Sync 43215203954, PR #7) proven on GitHub; PRs #5–#7 merged | 026 |
 | 18 | Tasks 8–12 for manual E2E runs (not planned yet): 8 footer format + 9 footer year (same line and same `app-version-footer` requirement: code + spec conflict for `resolve`), 10 Reset disabled at 0 (review/`/reapply` candidate), 11 unit test without a test runner (expected Apply failure → failure comment), 12 README-only change | done (files only; the user runs Plan by hand) | 027 |
-| 19 | Events ignores reviews on draft PRs (comment instead of a dispatch that Verify refuses); `run-name` with stage + task/PR title on every workflow (`label` input passed by the trampoline; Sync matrix `{pr, title}`) | done (actionlint clean, matrix JSON tested); **not yet run on GitHub** | 029 |
+| 19 | Events ignores reviews on draft PRs (comment instead of a dispatch that Verify refuses); `run-name` with stage + task/PR title on every workflow (`label` input passed by the trampoline; Sync matrix `{pr, title}`) | done (actionlint clean, matrix JSON tested); **proven on GitHub** (PRs #5–#7) | 029 |
+| 20 | Fixes from the PR #5–#7 run (D17): Sync skips a PR merged/closed after `find` (notice, no red run); Verify posts a "stopped before a verdict" comment (draft, stale approval, manifest, checks, agent error); branch protection `main` strict up-to-date (API) | done (actionlint: no errors; comment rendered locally; protection applied); **not yet run on GitHub**: does strict with no required checks block a behind PR? (check with tasks 8/9) | 031 |
 
 ## Next action
 
@@ -43,10 +44,9 @@ State (2026-11-12): PR #1 and PR #2 (task-2, opus, 29 min, merged `930a91b`) are
 Full record for the presentation: `memory/repo/poc-results.md` (update it in every commit).
 
 Step 9 (README, 023), the trampoline (024), the third run's fixes (025) and Sync (026) are done; PR #3/#4 merged. The user resumes with:
-1. **Small fixes from the 026 run** (proposed, not approved yet): Sync treats a PR closed meanwhile as a
-   quiet skip; Verify posts early failures (draft, stale approval) on the PR; optional branch
-   protection "Require branches to be up to date before merging". Then the user's manual runs of
-   tasks 8–12 (8/9 = code + spec conflict, 11 = expected Apply failure).
+1. **The user's manual runs of tasks 8–12** (8/9 = code + spec conflict, 11 = expected Apply
+   failure). Watch for: merge button blocked while a PR is behind (031 protection), the Verify
+   failure comment, the Sync quiet skip.
 2. **Presentation** from `poc-results.md` (outline or deck on request).
 3. Cleanup: delete `probe/007` on the old repo; optionally retire `arcibardo/openspec_ci`.
 
