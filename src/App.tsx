@@ -125,7 +125,7 @@ function App() {
       <div className="ticks"></div>
       <section id="spacer"></section>
       <footer>
-        {`v${__APP_VERSION__} (${__APP_COMMIT_SHA__}) · ${formatLocalDate(new Date())}`}
+        {`Version ${__APP_VERSION__} · ${__APP_COMMIT_SHA__} · ${formatLocalDate(new Date())}`}
       </footer>
     </>
   )
