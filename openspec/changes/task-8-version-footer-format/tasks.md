@@ -1,6 +1,6 @@
 ## 1. Footer format
 
-- [x] 1.1 In `src/App.tsx`, change the footer content from `v{__APP_VERSION__} ({__APP_COMMIT_SHA__})` to `Version {__APP_VERSION__} · {__APP_COMMIT_SHA__}`, keeping `__APP_VERSION__` and `__APP_COMMIT_SHA__` as the sources (no change to `vite.config.ts`).
+- [x] 1.1 In `src/App.tsx`, change the footer content from `v{__APP_VERSION__} ({__APP_COMMIT_SHA__})` to `Version {__APP_VERSION__} · {__APP_COMMIT_SHA__}` followed by the date suffix ` · {formatLocalDate(new Date())}` already on `main` (final text "Version <version> · <sha> · <YYYY-MM-DD>"), keeping `__APP_VERSION__` and `__APP_COMMIT_SHA__` as the sources (no change to `vite.config.ts`).
 - [x] 1.2 Search `src/` to confirm no other text was altered and no hardcoded version or SHA was introduced (e.g. grep `__APP_VERSION__` and `__APP_COMMIT_SHA__` are still the only sources).
 
 ## 2. Verification

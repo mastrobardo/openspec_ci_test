@@ -23,6 +23,25 @@ The footer SHALL also display the short git commit SHA of the build, resolved at
 - **WHEN** the app is built where git information is unavailable
 - **THEN** the footer shows "unknown" as the SHA, e.g. "Version 0.0.0 · unknown", and the build still succeeds
 
+### Requirement: Footer shows the current date
+The footer SHALL end with " · " followed by the current full date formatted `YYYY-MM-DD` in the visitor's local timezone, computed in the browser when the page renders. The rest of the footer text (version and commit SHA) MUST remain unchanged from the "Version <version> · <short sha>" format.
+
+#### Scenario: Date appended
+- **WHEN** the main page is rendered on 2026-11-17 with version `0.0.0` and SHA `abc1234`
+- **THEN** the footer text is "Version 0.0.0 · abc1234 · 2026-11-17"
+
+#### Scenario: Date computed at render time
+- **WHEN** the source of the footer is inspected
+- **THEN** the date comes from a runtime call such as `new Date()` and not from a build-time constant
+
+#### Scenario: Existing footer text unchanged
+- **WHEN** the main page is rendered
+- **THEN** the footer text before the final " · <date>" is exactly "Version <version> · <sha>"
+
+#### Scenario: Quality gates pass
+- **WHEN** `pnpm build` and `pnpm lint` are run after the change
+- **THEN** both complete successfully
+
 ### Requirement: Version is resolved at build time
 The displayed version and SHA MUST be read from `package.json` and git at build time, so that changing the version and rebuilding changes the footer text with no other code change.
 

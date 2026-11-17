@@ -9,9 +9,14 @@
   "plan_model": "claude-sonnet-5-5",
   "base_sha": "8b14f5656e03a4385d9da08a763f6de4c452b22f",
   "created_at": "2026-11-17T10:27:23Z",
-  "updated_at": "2026-11-17T10:29:09Z",
+  "updated_at": "2026-11-17T11:08:27Z",
   "apply_run_id": "44065139969",
   "apply_run_attempt": "1",
   "applied_at": "2026-11-17T10:28:31Z",
-  "apply_count": "1"
+  "apply_count": "1",
+  "synced_at": "2026-11-17T11:08:27Z",
+  "synced_main_sha": "ac8c3badbb9f3a8f538691d99072f73509f4b075",
+  "sync_result": "conflict",
+  "sync_run_id": "44071137531",
+  "sync_count": "1"
 }

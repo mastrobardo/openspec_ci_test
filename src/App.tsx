@@ -4,6 +4,12 @@ import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import './App.css'
 
+function formatLocalDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 function App() {
   const [count, setCount] = useState(0)
 
@@ -119,7 +125,7 @@ function App() {
       <div className="ticks"></div>
       <section id="spacer"></section>
       <footer>
-        Version {__APP_VERSION__} · {__APP_COMMIT_SHA__}
+        {`Version ${__APP_VERSION__} · ${__APP_COMMIT_SHA__} · ${formatLocalDate(new Date())}`}
       </footer>
     </>
   )
